@@ -1,8 +1,8 @@
 # BÀI TẬP LỚN: LẬP TRÌNH MẠNG  
 
-## [Tên dự án của nhóm]
+## Caro Network Project — Gomoku Online
 
-> 📘 *Mẫu README này là khung hướng dẫn. Sinh viên chỉ cần điền thông tin của nhóm và nội dung dự án theo từng mục.*
+> 📘 *Hệ thống chơi cờ Caro trực tuyến nhiều người chơi theo mô hình Client–Server, hỗ trợ giao tiếp thời gian thực qua WebSocket.*
 
 ---
 
@@ -10,27 +10,47 @@
 
 | STT | Họ và Tên | MSSV | Email | Đóng góp |
 |-----|-----------|------|-------|----------|
-| 1 | Nguyễn Văn A | 20IT001 | a@example.com | ... |
-| 2 | Trần Thị B | 20IT002 | b@example.com | ... |
-| 3 | Lê Văn C | 20IT003 | c@example.com | ... |
+| 1 | Nguyễn Huy Hoàng | B23DCCN336 | nhhoangne@gmail.com | ... |
+| 2 | Lê Doãn Trung | B23DCCN854 |  | ... |
+| 3 | Nguyễn Công Quân | B23DCCN678 |  | ... |
 
-**Tên nhóm:** Nhóm 01 – Lập trình mạng  
-**Chủ đề đã đăng ký:** (…)
+**Tên nhóm:** Nhóm 09 – Lập trình mạng  
+**Chủ đề đã đăng ký:** (Game cờ caro thi đấu đối kháng online)
 
 ---
 
 ## 🧠 MÔ TẢ HỆ THỐNG
 
-> Mô tả tổng quan hệ thống mà nhóm triển khai.
+Caro Network Project là ứng dụng web cho phép nhiều người chơi tham gia các ván cờ Caro trực tuyến thông qua mô hình Client–Server.
 
-Ví dụ:
-> Hệ thống bao gồm **server** xử lý yêu cầu và **client** gửi yêu cầu đến server qua giao thức HTTP.  
-> Server cung cấp API cho phép tính toán đơn giản hoặc truyền dữ liệu.  
-> Client có thể là chương trình CLI, web hoặc ứng dụng desktop.
+Hệ thống sử dụng React và TypeScript để xây dựng giao diện người dùng, Spring Boot để triển khai backend và PostgreSQL để lưu trữ dữ liệu. HTTP được sử dụng cho các thao tác thông thường, trong khi WebSocket hỗ trợ giao tiếp hai chiều theo thời gian thực giữa client và server.
+
+Các chức năng dự kiến:
+
+- Tạo phòng chơi và tham gia phòng bằng mã phòng.
+- Chơi Caro trực tuyến giữa hai người chơi.
+- Đồng bộ nước đi và trạng thái ván đấu theo thời gian thực.
+- Kiểm tra lượt đi, điều kiện thắng và kết thúc ván đấu.
+- Chat trong phòng chơi.
+- Xem lịch sử trận đấu và bảng xếp hạng.
+- Xử lý người chơi mất kết nối và các tình huống lỗi mạng cơ bản.
 
 **Cấu trúc logic tổng quát:**
 ```
-client  <-->  server  <-->  (database / service nếu có)
+Browser A ─────┐
+               │ HTTP / WebSocket
+               ▼
+         Spring Boot Server
+               │
+       ┌───────┴────────┐
+       │                │
+   Game Engine       PostgreSQL
+       │
+       ▼
+  Room / Game State
+       ▲
+       │ HTTP / WebSocket
+Browser B ─────┘
 ```
 
 **Sơ đồ hệ thống:**
@@ -41,13 +61,11 @@ client  <-->  server  <-->  (database / service nếu có)
 
 ## ⚙️ CÔNG NGHỆ SỬ DỤNG
 
-> Liệt kê công nghệ, framework, thư viện chính mà nhóm sử dụng.
-
 | Thành phần | Công nghệ | Ghi chú |
 |------------|-----------|---------|
-| Server | Python 3.11 + Flask | REST API |
-| Client | Node.js 20 + Axios | Giao tiếp HTTP |
-| Database | SQLite | Lưu trữ dữ liệu tạm thời |
+| Server | Java + Spring Boot | REST API |
+| Client | React + TypeScript | Giao tiếp HTTP |
+| Database | PostgreSQL | Lưu trữ dữ liệu tạm thời |
 | Triển khai | Docker | (nếu có) |
 
 ---
@@ -57,19 +75,25 @@ client  <-->  server  <-->  (database / service nếu có)
 ### 1. Clone repository
 ```bash
 git clone <repository-url>
-cd assignment-network-project
+cd caro-network-project
 ```
 
 ### 2. Chạy server
 ```bash
 cd source/server
-# Các lệnh để khởi động server
+
+# macOS / Linux
+./mvnw spring-boot:run
+
+# Windows
+mvnw.cmd spring-boot:run
 ```
 
 ### 3. Chạy client
 ```bash
 cd source/client
-# Các lệnh để khởi động client
+npm install
+npm run dev
 ```
 
 ### 4. Kiểm thử nhanh
@@ -98,40 +122,136 @@ cd source/client
 
 ## 🧩 CẤU TRÚC DỰ ÁN
 ```
-assignment-network-project/
+caro-network-project/
 ├── README.md
 ├── INSTRUCTION.md
 ├── statics/
-│   ├── diagram.png
+│   ├── architecture.png
+│   ├── sequence-diagram.png
+│   ├── database-erd.png
 │   └── dataset_sample.csv
+│
 └── source/
     ├── .gitignore
-    ├── client/
+    │
+    ├── client/                         # FE - React + TypeScript
     │   ├── README.md
-    │   └── (client source files...)
-    ├── server/
-    │   ├── README.md
-    │   └── (server source files...)
-    └── (các module khác nếu có)
+    │   ├── package.json
+    │   ├── package-lock.json
+    │   ├── index.html
+    │   ├── vite.config.ts
+    │   ├── tsconfig.json
+    │   ├── public/
+    │   └── src/
+    │       ├── assets/
+    │       ├── components/
+    │       │   ├── Board/
+    │       │   ├── Cell/
+    │       │   ├── ChatBox/
+    │       │   └── PlayerInfo/
+    │       ├── pages/
+    │       │   ├── HomePage.tsx
+    │       │   ├── LoginPage.tsx
+    │       │   ├── LobbyPage.tsx
+    │       │   ├── GamePage.tsx
+    │       │   ├── HistoryPage.tsx
+    │       │   └── RankingPage.tsx
+    │       ├── hooks/
+    │       ├── services/
+    │       │   ├── api.ts
+    │       │   └── websocket.ts
+    │       ├── types/
+    │       ├── App.tsx
+    │       └── main.tsx
+    │
+    └── server/                         # BE - Java + Spring Boot
+        ├── README.md
+        ├── pom.xml
+        ├── mvnw
+        ├── mvnw.cmd
+        ├── .mvn/
+        └── src/
+            ├── main/
+            │   ├── java/com/caro/
+            │   │   ├── CaroApplication.java
+            │   │   │
+            │   │   ├── controller/
+            │   │   │   ├── AuthController.java
+            │   │   │   ├── UserController.java
+            │   │   │   ├── RoomController.java
+            │   │   │   ├── GameController.java
+            │   │   │   └── RankingController.java
+            │   │   │
+            │   │   ├── service/
+            │   │   │   ├── AuthService.java
+            │   │   │   ├── UserService.java
+            │   │   │   ├── RoomService.java
+            │   │   │   ├── GameService.java
+            │   │   │   └── RankingService.java
+            │   │   │
+            │   │   ├── repository/
+            │   │   │   ├── UserRepository.java
+            │   │   │   ├── RoomRepository.java
+            │   │   │   ├── GameRepository.java
+            │   │   │   └── MoveRepository.java
+            │   │   │
+            │   │   ├── entity/
+            │   │   │   ├── User.java
+            │   │   │   ├── Room.java
+            │   │   │   ├── Game.java
+            │   │   │   └── Move.java
+            │   │   │
+            │   │   ├── dto/
+            │   │   │   ├── auth/
+            │   │   │   ├── user/
+            │   │   │   ├── room/
+            │   │   │   └── game/
+            │   │   │
+            │   │   ├── websocket/
+            │   │   │   ├── WebSocketConfig.java
+            │   │   │   ├── GameWebSocketHandler.java
+            │   │   │   └── WebSocketEventHandler.java
+            │   │   │
+            │   │   ├── gameengine/
+            │   │   │   ├── Board.java
+            │   │   │   ├── Move.java
+            │   │   │   └── WinChecker.java
+            │   │   │
+            │   │   ├── config/
+            │   │   └── common/
+            │   │
+            │   └── resources/
+            │       ├── application.yml
+            │       └── application-example.yml
+            │
+            └── test/
+                └── java/com/caro/
 ```
 
 ---
 
 ## 🧩 HƯỚNG PHÁT TRIỂN THÊM
 
-> Nêu ý tưởng mở rộng hoặc cải tiến hệ thống.
+- [ ] Hoàn thiện giao diện và tối ưu trải nghiệm người dùng.
 
-- [ ] Cải thiện giao diện người dùng
-- [ ] Thêm tính năng xác thực và phân quyền
-- [ ] Tối ưu hóa hiệu suất
-- [ ] Triển khai trên cloud
+- [ ] Bổ sung xác thực và phân quyền người chơi.
+
+- [ ] Hoàn thiện xử lý mất kết nối và kết nối lại.
+
+- [ ] Bổ sung chế độ chơi với máy.
+
+- [ ] Phát triển ghép trận ngẫu nhiên.
+
+- [ ] Bổ sung xem lại lịch sử nước đi.
+
+- [ ] Tối ưu hiệu suất khi có nhiều phòng chơi.
 
 ---
 
 ## 📝 GHI CHÚ
 
 - Repo tuân thủ đúng cấu trúc đã hướng dẫn trong `INSTRUCTION.md`.
-- Đảm bảo test kỹ trước khi submit.
+- Không commit mật khẩu database, token hoặc thông tin bí mật vào repository.
 
 ---
 
