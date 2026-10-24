@@ -98,21 +98,110 @@ cd source/client
 
 ## 🧩 CẤU TRÚC DỰ ÁN
 ```
-assignment-network-project/
+caro-network-project/
 ├── README.md
 ├── INSTRUCTION.md
 ├── statics/
-│   ├── diagram.png
+│   ├── architecture.png
+│   ├── sequence-diagram.png
+│   ├── database-erd.png
 │   └── dataset_sample.csv
+│
 └── source/
     ├── .gitignore
-    ├── client/
+    │
+    ├── client/                         # FE - React + TypeScript
     │   ├── README.md
-    │   └── (client source files...)
-    ├── server/
-    │   ├── README.md
-    │   └── (server source files...)
-    └── (các module khác nếu có)
+    │   ├── package.json
+    │   ├── package-lock.json
+    │   ├── index.html
+    │   ├── vite.config.ts
+    │   ├── tsconfig.json
+    │   ├── public/
+    │   └── src/
+    │       ├── assets/
+    │       ├── components/
+    │       │   ├── Board/
+    │       │   ├── Cell/
+    │       │   ├── ChatBox/
+    │       │   └── PlayerInfo/
+    │       ├── pages/
+    │       │   ├── HomePage.tsx
+    │       │   ├── LoginPage.tsx
+    │       │   ├── LobbyPage.tsx
+    │       │   ├── GamePage.tsx
+    │       │   ├── HistoryPage.tsx
+    │       │   └── RankingPage.tsx
+    │       ├── hooks/
+    │       ├── services/
+    │       │   ├── api.ts
+    │       │   └── websocket.ts
+    │       ├── types/
+    │       ├── App.tsx
+    │       └── main.tsx
+    │
+    └── server/                         # BE - Java + Spring Boot
+        ├── README.md
+        ├── pom.xml
+        ├── mvnw
+        ├── mvnw.cmd
+        ├── .mvn/
+        └── src/
+            ├── main/
+            │   ├── java/com/caro/
+            │   │   ├── CaroApplication.java
+            │   │   │
+            │   │   ├── controller/
+            │   │   │   ├── AuthController.java
+            │   │   │   ├── UserController.java
+            │   │   │   ├── RoomController.java
+            │   │   │   ├── GameController.java
+            │   │   │   └── RankingController.java
+            │   │   │
+            │   │   ├── service/
+            │   │   │   ├── AuthService.java
+            │   │   │   ├── UserService.java
+            │   │   │   ├── RoomService.java
+            │   │   │   ├── GameService.java
+            │   │   │   └── RankingService.java
+            │   │   │
+            │   │   ├── repository/
+            │   │   │   ├── UserRepository.java
+            │   │   │   ├── RoomRepository.java
+            │   │   │   ├── GameRepository.java
+            │   │   │   └── MoveRepository.java
+            │   │   │
+            │   │   ├── entity/
+            │   │   │   ├── User.java
+            │   │   │   ├── Room.java
+            │   │   │   ├── Game.java
+            │   │   │   └── Move.java
+            │   │   │
+            │   │   ├── dto/
+            │   │   │   ├── auth/
+            │   │   │   ├── user/
+            │   │   │   ├── room/
+            │   │   │   └── game/
+            │   │   │
+            │   │   ├── websocket/
+            │   │   │   ├── WebSocketConfig.java
+            │   │   │   ├── GameWebSocketHandler.java
+            │   │   │   └── WebSocketEventHandler.java
+            │   │   │
+            │   │   ├── gameengine/
+            │   │   │   ├── Board.java
+            │   │   │   ├── Move.java
+            │   │   │   └── WinChecker.java
+            │   │   │
+            │   │   ├── config/
+            │   │   └── common/
+            │   │
+            │   └── resources/
+            │       ├── application.yml
+            │       └── application-example.yml
+            │
+            └── test/
+                └── java/com/caro/
 ```
 
 ---
