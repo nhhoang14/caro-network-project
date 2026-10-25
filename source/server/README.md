@@ -1,85 +1,23 @@
-# MODULE SERVER
+# Server — Caro Club
 
-> 📘 *Sinh viên mô tả phần **server** tại đây. Điền đầy đủ theo framework và bài toán của nhóm.*
+Node.js 22+ và ws, dữ liệu RAM. Spring Boot/PostgreSQL là định hướng phát triển tiếp.
 
----
+Chạy tại **source/**:
 
-## 🎯 MỤC TIÊU
-
-Server chịu trách nhiệm:
-- Tiếp nhận yêu cầu từ client
-- Xử lý dữ liệu/tính toán
-- Trả kết quả cho client
-
----
-
-## ⚙️ CÔNG NGHỆ SỬ DỤNG
-
-| Thành phần | Công nghệ |
-|------------|-----------|
-| Ngôn ngữ | Python / Node.js / Java / ... |
-| Framework | Flask / Express / Spring Boot / ... |
-| Database | SQLite / MySQL / ... (nếu có) |
-
----
-
-## 🚀 HƯỚNG DẪN CHẠY
-
-### Cài đặt
-```bash
-# Ví dụ với Python
-pip install -r requirements.txt
-
-# Hoặc với Node.js
+```powershell
 npm install
+npm run build
+npm start
 ```
 
-### Khởi động server
-```bash
-# Ví dụ
-python app.py
-# hoặc
-node server.js
-```
+Mặc định 0.0.0.0:3000, đổi bằng PORT. `npm run dev` thêm Vite middleware. `npm test` chạy unit tests và test với hai WebSocket client thật; test tự mở/đóng server trên cổng trống.
 
-Server chạy tại: `http://localhost:8080`
+- index.mjs: HTTP /health, client build, WebSocket /ws, Origin, payload/rate limit, heartbeat.
+- rooms.mjs: phiên, phòng, kiểm tra nước đi, chat, đồng hồ 30 giây, kết nối lại 30 giây, đầu hàng, chơi lại đổi bên.
+- connection.mjs: GET /api/connection chọn IPv4 LAN (ưu tiên Wi-Fi) và PUBLIC_URL nếu được cấu hình; dùng cho QR/link mời và cho phép đúng Origin public qua reverse proxy.
+- ../shared/game.mjs: kiểm tra chuỗi thắng theo bốn hướng.
+- test/: luật cờ, vòng đời phòng và giao thức thật.
 
----
+Server là nguồn trạng thái có thẩm quyền cho online. Payload tối đa 8 KB, 30 gói/giây/kết nối; chat 300 ký tự, ít nhất 500 ms giữa hai tin/người. Giữ 60 tin/phòng, tối đa 100 phòng và 1.000 phiên. Phiên offline không có phòng bị dọn sau 10 phút.
 
-## 🔗 API
-
-| Endpoint | Method | Input | Output |
-|----------|--------|-------|--------|
-| `/health` | GET | — | `{"status":"ok"}` |
-| `/api/...` | POST | `{...}` | `{...}` |
-
-> **Lưu ý:** Bổ sung các endpoint của nhóm vào bảng trên.
-
----
-
-## 📦 CẤU TRÚC
-```
-server/
-├── README.md
-├── app.py (hoặc server.js)
-├── requirements.txt (hoặc package.json)
-├── routes/
-│   └── ...
-└── utils/
-    └── ...
-```
-
----
-
-## 🧪 TEST
-```bash
-# Test API bằng curl
-curl http://localhost:8080/health
-```
-
----
-
-## 📝 GHI CHÚ
-
-- Port mặc định: **8080**
-- Có thể thay đổi trong file `.env` hoặc config
+Giao thức JSON, kịch bản demo và giới hạn nằm trong README gốc.
