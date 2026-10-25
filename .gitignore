@@ -1,0 +1,8 @@
+.DS_Store
+node_modules/
+.npm-cache/
+source/client/dist/
+*.log
+.env
+.env.*
+!.env.example

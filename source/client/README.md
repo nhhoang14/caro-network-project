@@ -1,74 +1,21 @@
-# MODULE CLIENT
+# Client — Caro Club
 
-> 📘 *Sinh viên mô tả phần **client** tại đây. Điền đầy đủ theo framework và bài toán của nhóm.*
+React + TypeScript, Vite. Bàn cờ 15×15, bot, phòng online, chat và lịch sử trên trình duyệt.
 
----
+Chạy các lệnh tại **source/**, nơi đặt package.json dùng chung:
 
-## 🎯 MỤC TIÊU
-
-Client chịu trách nhiệm:
-- Gửi yêu cầu đến server
-- Hiển thị kết quả cho người dùng
-- Cung cấp giao diện tương tác
-
----
-
-## ⚙️ CÔNG NGHỆ SỬ DỤNG
-
-| Thành phần | Công nghệ |
-|------------|-----------|
-| Ngôn ngữ | Node.js / Python / Java / ... |
-| Thư viện chính | Axios / Requests / ... |
-| Giao thức | HTTP / WebSocket / ... |
-
----
-
-## 🚀 HƯỚNG DẪN CHẠY
-
-### Cài đặt
-```bash
-# Ví dụ với Node.js
+```powershell
 npm install
-
-# Hoặc với Python
-pip install -r requirements.txt
+npm run dev
 ```
 
-### Chạy chương trình
-```bash
-# Ví dụ
-node main.js
-# hoặc
-python client.py
-```
+Mở http://localhost:3000. HTTP và WebSocket cùng host/cổng. Dev server dùng Vite middleware và HMR.
 
-### Cấu hình (nếu cần)
-- Server URL: `http://localhost:8080`
-- Có thể thay đổi trong file `config.js` hoặc `.env`
+Build và kiểm tra TypeScript: `npm run build`. Sản phẩm ở `client/dist/`, được server phục vụ khi chạy `npm start`.
 
----
+- src/App.tsx: giao diện, trạng thái, WebSocket reconnect, đấu máy.
+- src/InvitePanel.tsx: tạo QR trong trình duyệt, chọn địa chỉ LAN/public, sao chép link mời.
+- src/styles.css: bố cục responsive, bàn cờ, modal, chat.
+- ../shared/game.mjs: luật và bot dùng chung.
 
-## 📦 CẤU TRÚC
-```
-client/
-├── README.md
-├── main.js (hoặc client.py)
-├── config.js
-└── lib/
-    └── helper.js
-```
-
----
-
-## 💡 SỬ DỤNG
-```bash
-# Ví dụ gửi request
-node main.js --input "data"
-```
-
----
-
-## 📝 GHI CHÚ
-
-- Đảm bảo server đã chạy trước khi khởi động client
-- Mặc định kết nối đến `localhost:8080`
+Tên, âm thanh và lịch sử lưu trong localStorage; token phiên lưu sessionStorage. Mở tab độc lập hoặc trình duyệt khác để có người thứ hai. Xem README gốc để chạy LAN và tìm hiểu giao thức.
