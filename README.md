@@ -11,7 +11,7 @@
 | STT | Họ và Tên | MSSV | Email | Đóng góp |
 |-----|-----------|------|-------|----------|
 | 1 | Nguyễn Huy Hoàng | B23DCCN336 | nhhoangne@gmail.com | ... |
-| 2 | Lê Doãn Trung | B23DCCN854 |  | ... |
+| 2 | Lê Doãn Trung | B23DCCN854 | ledoantrung38@gmail.com | ... |
 | 3 | Nguyễn Công Quân | B23DCCN678 |  | ... |
 
 **Tên nhóm:** Nhóm 09 – Lập trình mạng  
