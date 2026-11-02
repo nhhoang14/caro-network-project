@@ -55,7 +55,8 @@ type HistoryItem = {
 };
 type ServerMatch = { id: string; players: { id: string; name: string }[]; winner: string | null; moves: Move[]; at: number; reason: string };
 type Score = { id: string; name: string; wins: number; draws: number; played: number };
-type Dialog = "rooms" | "history" | "leaderboard" | "replay" | "rules" | "resign" | "leave" | "practice" | null;
+type Account = { id: string; username: string; name: string; profileId: string };
+type Dialog = "auth" | "rooms" | "history" | "leaderboard" | "replay" | "rules" | "resign" | "leave" | "practice" | null;
 
 function stored<T>(key: string, fallback: T): T {
   try {
@@ -239,6 +240,12 @@ export default function App() {
   const [serverHistory, setServerHistory] = useState<ServerMatch[]>([]);
   const [leaderboard, setLeaderboard] = useState<Score[]>([]);
   const [profileId, setProfileId] = useState("");
+  const [account, setAccount] = useState<Account | null>(null);
+  const [authMode, setAuthMode] = useState<"login" | "register">("login");
+  const [authUsername, setAuthUsername] = useState("");
+  const [authPassword, setAuthPassword] = useState("");
+  const [authBusy, setAuthBusy] = useState(false);
+  const [authError, setAuthError] = useState("");
   const [replaySource, setReplaySource] = useState<Replay | null>(null);
   const [code, setCode] = useState(
     () =>
@@ -290,6 +297,66 @@ export default function App() {
 
   function notify(message: string) {
     setToast(message);
+  }
+  useEffect(() => {
+    let active = true;
+    fetch("/api/auth/me", { credentials: "same-origin" })
+      .then((response) => response.json())
+      .then((data: { account: Account | null }) => {
+        if (active && data.account) {
+          setAccount(data.account);
+          setName(data.account.name);
+        }
+      })
+      .catch(() => {});
+    return () => { active = false; };
+  }, []);
+  async function submitAuth(event: FormEvent) {
+    event.preventDefault();
+    if (isOnline) { setAuthError("Hãy rời phòng trước khi đổi tài khoản."); return; }
+    setAuthBusy(true);
+    setAuthError("");
+    try {
+      const response = await fetch(`/api/auth/${authMode}`, {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json", "X-Caro-Request": "1" },
+        body: JSON.stringify({ username: authUsername, password: authPassword }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message || "Không thể đăng nhập.");
+      const next = data.account as Account;
+      setAccount(next);
+      setName(next.name);
+      setServerHistory([]);
+      setLeaderboard([]);
+      setAuthPassword("");
+      setDialog(null);
+      socket.current?.close();
+      notify(authMode === "register" ? "Đã tạo tài khoản và đăng nhập." : "Đăng nhập thành công.");
+    } catch (error) {
+      setAuthError(error instanceof Error ? error.message : "Không thể kết nối server.");
+    } finally { setAuthBusy(false); }
+  }
+  async function logout() {
+    if (isOnline) { setAuthError("Hãy rời phòng trước khi đăng xuất."); return; }
+    setAuthBusy(true);
+    setAuthError("");
+    try {
+      const response = await fetch("/api/auth/logout", {
+        method: "POST", credentials: "same-origin", headers: { "X-Caro-Request": "1" },
+      });
+      if (!response.ok) throw new Error("Không thể đăng xuất.");
+      setAccount(null);
+      setProfileId("");
+      setServerHistory([]);
+      setLeaderboard([]);
+      setDialog(null);
+      socket.current?.close();
+      notify("Đã đăng xuất. Bạn vẫn có thể chơi với tư cách khách.");
+    } catch (error) {
+      setAuthError(error instanceof Error ? error.message : "Không thể kết nối server.");
+    } finally { setAuthBusy(false); }
   }
   function beep() {
     if (!sound) return;
@@ -667,10 +734,10 @@ export default function App() {
           <span className="tip-dots">○ &nbsp; × &nbsp; ○</span>
         </div>
         <div className="sidebar-bottom">
-          <div className="avatar">{(name || "B").charAt(0).toUpperCase()}</div>
+          <div className="avatar">{(account?.name || name || "B").charAt(0).toUpperCase()}</div>
           <div>
-            <strong>{name || "Người chơi mới"}</strong>
-            <span>Sẵn sàng cho một ván cờ</span>
+            <strong>{account?.name || name || "Người chơi mới"}</strong>
+            <span>{account ? `@${account.username}` : "Đang chơi với tư cách khách"}</span>
           </div>
           <span className="green-dot" />
         </div>
@@ -694,6 +761,10 @@ export default function App() {
                   ? "Đang kết nối lại…"
                   : "Đang kết nối…"}</span>
           </div>
+          <button className="account-button" onClick={() => { setAuthError(""); setDialog("auth"); }}>
+            <span className="account-button-avatar">{account ? account.name.charAt(0).toUpperCase() : <Icon name="shield" size={16} />}</span>
+            <span>{account ? account.username : "Đăng nhập"}</span>
+          </button>
           <span className="demo-label">DEMO · NHÓM 09</span>
         </header>
         <main>
@@ -1253,7 +1324,9 @@ export default function App() {
           >
             <div className="modal-heading">
               <h2 id="modal-title">
-                {dialog === "rooms"
+                {dialog === "auth"
+                  ? account ? "Tài khoản của bạn" : "Lưu thành tích của bạn"
+                  : dialog === "rooms"
                   ? "Tìm bạn cùng chơi"
                   : dialog === "history"
                     ? "Những ván cờ đã qua"
@@ -1277,6 +1350,36 @@ export default function App() {
                 <Icon name="close" />
               </button>
             </div>
+            {dialog === "auth" && (account ? (
+              <div className="auth-profile">
+                <div className="auth-profile-avatar">{account.name.charAt(0).toUpperCase()}</div>
+                <strong>{account.name}</strong>
+                <span>@{account.username}</span>
+                <p>Lịch sử và bảng xếp hạng online của tài khoản được lưu trong MongoDB. Bạn có thể đăng nhập lại trên thiết bị khác.</p>
+                {authError && <p className="auth-error" role="alert">{authError}</p>}
+                <button className="button secondary full" onClick={logout} disabled={authBusy || isOnline}>Đăng xuất</button>
+                {isOnline && <small>Rời phòng hiện tại để đăng xuất.</small>}
+              </div>
+            ) : (
+              <>
+                <p className="modal-description">Đăng nhập để lưu lịch sử đấu online theo tài khoản và tiếp tục trên thiết bị khác.</p>
+                <div className="auth-tabs" role="group" aria-label="Chọn cách vào tài khoản">
+                  <button className={authMode === "login" ? "active" : ""} onClick={() => { setAuthMode("login"); setAuthError(""); }} type="button">Đăng nhập</button>
+                  <button className={authMode === "register" ? "active" : ""} onClick={() => { setAuthMode("register"); setAuthError(""); }} type="button">Tạo tài khoản</button>
+                </div>
+                <form className="auth-form" onSubmit={submitAuth}>
+                  <label htmlFor="auth-username">Tên tài khoản</label>
+                  <input id="auth-username" value={authUsername} onChange={(event) => setAuthUsername(event.target.value)} autoComplete="username" minLength={3} maxLength={24} pattern="[A-Za-z0-9_]{3,24}" placeholder="Ví dụ: caro_player" required />
+                  <small>3–24 ký tự: chữ, số hoặc dấu gạch dưới.</small>
+                  <label htmlFor="auth-password">Mật khẩu</label>
+                  <input id="auth-password" type="password" value={authPassword} onChange={(event) => setAuthPassword(event.target.value)} autoComplete={authMode === "register" ? "new-password" : "current-password"} minLength={authMode === "register" ? 8 : undefined} placeholder="Nhập mật khẩu" required />
+                  {authMode === "register" && <small>Ít nhất 8 ký tự. Thành tích chơi khách trước đây vẫn ở hồ sơ khách.</small>}
+                  {authError && <p className="auth-error" role="alert">{authError}</p>}
+                  <button className="button primary full" type="submit" disabled={authBusy || isOnline}>{authBusy ? "Đang xử lý…" : authMode === "login" ? "Đăng nhập" : "Tạo tài khoản"}</button>
+                  {isOnline && <small>Rời phòng hiện tại để đổi tài khoản.</small>}
+                </form>
+              </>
+            ))}
             {dialog === "rooms" && (
               <>
                 <p className="modal-description">
@@ -1414,7 +1517,7 @@ export default function App() {
                 <div className="rule-note">
                   <Icon name="shield" size={18} />
                   <span>
-                    Phòng và chat lưu trong RAM. Lịch sử online và bảng xếp hạng lưu trên server, không có đăng nhập. Máy dùng chiến thuật cơ bản.
+                    Phòng và chat lưu trong RAM. Tài khoản, lịch sử online và bảng xếp hạng lưu trong MongoDB. Bạn cũng có thể chơi với tư cách khách.
                   </span>
                 </div>
                 <button

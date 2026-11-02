@@ -1,8 +1,10 @@
 # Server — Caro Club
 
-Node.js 22+ và ws. Phòng, phiên, chat ở RAM; hồ sơ và lịch sử online ở file JSON. Spring Boot/PostgreSQL là định hướng phát triển tiếp.
+Backend chính sử dụng Java 21, Spring Boot 3.5 và Spring Data MongoDB. Giao thức HTTP/WebSocket vẫn tương thích với client React hiện tại.
 
-Chạy tại **source/**:
+## Chạy
+
+Khởi động MongoDB local ở `mongodb://localhost:27017`, hoặc đặt `MONGODB_URI` trỏ đến MongoDB của nhóm. Từ thư mục `source/`:
 
 ```powershell
 npm install
@@ -10,19 +12,32 @@ npm run build
 npm start
 ```
 
-Mặc định 0.0.0.0:3000, đổi bằng PORT. `npm run dev` thêm Vite middleware. `npm test` chạy unit tests và test với hai WebSocket client thật; test tự mở/đóng server trên cổng trống.
+`npm start` chạy Maven/Spring Boot trên cổng 3000 và phục vụ bản React đã build. Để phát triển giao diện, dùng `npm run dev`: Vite ở cổng 5173 chuyển `/ws`, `/api` và `/health` sang Spring Boot ở cổng 3000. Có thể chạy riêng `npm run dev:server` và `npm run dev:client`.
 
-- index.mjs: HTTP /health, client build, WebSocket /ws, Origin, payload/rate limit, heartbeat.
-- rooms.mjs: phiên, phòng, kiểm tra nước đi, chat, đồng hồ 30 giây, kết nối lại 30 giây, đầu hàng, chơi lại đổi bên.
-- history.mjs: lưu hồ sơ và tối đa 5.000 kết quả online vào `server/data/history.json` bằng ghi file tạm rồi thay thế; tạo bảng xếp hạng và 30 ván gần nhất của từng hồ sơ.
+Biến môi trường:
 
-Có thể đổi vị trí file bằng biến môi trường `HISTORY_FILE` (ví dụ khi chạy test hoặc mount volume). Mặc định thư mục `server/data/` được tạo tự động.
-- connection.mjs: GET /api/connection chọn IPv4 LAN (ưu tiên Wi-Fi) và PUBLIC_URL nếu được cấu hình; dùng cho QR/link mời và cho phép đúng Origin public qua reverse proxy.
-- ../shared/game.mjs: kiểm tra chuỗi thắng theo bốn hướng.
-- test/: luật cờ, vòng đời phòng và giao thức thật.
+| Tên | Mặc định | Công dụng |
+| --- | --- | --- |
+| `MONGODB_URI` | `mongodb://localhost:27017/caro_network` | Kết nối MongoDB; có thể dùng Atlas hoặc server của nhóm |
+| `PORT` | `3000` | Cổng HTTP/WebSocket |
+| `PUBLIC_URL` | rỗng | Origin public cho QR/link mời và WebSocket |
+| `LEGACY_HISTORY_FILE` | rỗng | File JSON cũ để nhập một lần vào MongoDB |
 
-Server là nguồn trạng thái có thẩm quyền cho online. Payload tối đa 8 KB, 30 gói/giây/kết nối; chat 300 ký tự, ít nhất 500 ms giữa hai tin/người. Giữ 60 tin/phòng, tối đa 100 phòng và 1.000 phiên. Phiên offline không có phòng bị dọn sau 10 phút.
+Nếu đã có `source/server/data/history.json`, nhập hồ sơ và ván cũ bằng cách đặt `LEGACY_HISTORY_FILE` thành đường dẫn tuyệt đối của file trước khi chạy. Quá trình nhập kiểm tra ID nên chạy lại không tạo bản ghi trùng. Không đưa mật khẩu MongoDB hoặc file `.env` lên Git.
 
-Giao thức bổ sung `match`/`cancelMatch` cho hàng chờ ghép trận, `spectate` cho khán giả chỉ đọc và `stats` cho lịch sử/bảng xếp hạng. Khán giả không giữ ghế và không được gọi các hành động trong ván. `hello` nhận `profileToken` tùy chọn; server cấp mã hồ sơ mới nếu không có, client lưu mã này trong sessionStorage để mỗi tab độc lập có hồ sơ riêng. Không có xác thực tài khoản; đóng tab hoặc xóa sessionStorage có thể làm mất mã truy cập hồ sơ. `server/data/` bị Git bỏ qua và cần được giữ khi cập nhật server nếu muốn giữ lịch sử.
+Để dùng URI MongoDB riêng trên máy mà không đưa mật khẩu lên GitHub, tạo `source/server/atlas.properties` với một dòng `spring.data.mongodb.uri=<URI của bạn>`. File này được `.gitignore` bỏ qua và Spring Boot tự nạp khi chạy từ `source/` hoặc `source/server/`. Kiểm tra bằng `git check-ignore -v source/server/atlas.properties`; không đưa URI thật vào `src/main/resources/application.properties`.
 
-Giao thức JSON, kịch bản demo và giới hạn nằm trong README gốc.
+## Cấu trúc
+
+- `CaroSocketHandler`: `/ws`, xác nhận `hello`, giới hạn tốc độ, heartbeat.
+- `RoomService`: phòng, phiên, lượt chơi, chat, đồng hồ, khán giả, ghép trận, chơi lại.
+- `GameRules`: kiểm tra 5 quân liên tiếp. Bot luyện tập vẫn ở client.
+- `MongoHistoryStore`: collection `profiles` và `matches`, lịch sử 30 ván và bảng xếp hạng 20 người.
+- `HttpApi`: `/health` và `/api/connection`.
+- `AuthController`/`AuthService`: đăng ký, đăng nhập, đăng xuất; cookie phiên; tài khoản và phiên trong MongoDB.
+
+Phòng, phiên chơi, hàng chờ và chat hiện hành giữ trong RAM; MongoDB lưu `accounts`, `auth_sessions`, `profiles`, `matches` gồm chuỗi nước đi. Mật khẩu băm BCrypt; cookie đăng nhập HttpOnly/SameSite=Lax có hạn 30 ngày, token phiên chỉ lưu dạng băm SHA-256 trong MongoDB. Khách vẫn dùng mã hồ sơ trong `sessionStorage`. Tài khoản mới có hồ sơ riêng nên lịch sử khách không tự nhập vào tài khoản. Mỗi ván có ID riêng nên kết quả không bị ghi hai lần.
+
+API tài khoản: `GET /api/auth/me`, `POST /api/auth/register`, `POST /api/auth/login`, `POST /api/auth/logout`. Các lệnh POST cần `X-Caro-Request: 1`, Origin cùng trang và JSON cho đăng ký/đăng nhập. Khi đăng nhập, WebSocket dùng hồ sơ tài khoản theo cookie; đăng xuất thu hồi phiên và đóng WebSocket tương ứng. Triển khai công khai phải dùng HTTPS/WSS; HTTP trên LAN không mã hóa mật khẩu khi truyền.
+
+Lệnh kiểm thử: `mvn -f source/server/pom.xml test` khi chạy ở thư mục gốc. Kiểm thử này không cần MongoDB; để chạy ứng dụng thật cần MongoDB sẵn sàng. Backend Node.js trước đây còn trong thư mục này làm tài liệu tham chiếu, nhưng các lệnh npm hiện chạy Spring Boot.
