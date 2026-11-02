@@ -6,6 +6,7 @@ import {
   type ReactNode,
 } from "react";
 import InvitePanel from "./InvitePanel";
+import ReplayPanel, { type Replay } from "./ReplayPanel";
 import {
   chooseBotMove,
   emptyBoard,
@@ -38,9 +39,10 @@ type Room = {
   remaining: number | null;
   messages: Message[];
   rematch: string[];
+  spectators?: number;
   serverTime?: number;
 };
-type LobbyRoom = { id: string; host: string; count: number };
+type LobbyRoom = { id: string; host: string; count: number; status: string; spectators: number };
 type HistoryItem = {
   id: string;
   opponent: string;
@@ -48,8 +50,12 @@ type HistoryItem = {
   moves: number;
   at: number;
   mode: string;
+  sequence?: Move[];
+  players?: { name: string }[];
 };
-type Dialog = "rooms" | "history" | "rules" | "resign" | "leave" | "practice" | null;
+type ServerMatch = { id: string; players: { id: string; name: string }[]; winner: string | null; moves: Move[]; at: number; reason: string };
+type Score = { id: string; name: string; wins: number; draws: number; played: number };
+type Dialog = "rooms" | "history" | "leaderboard" | "replay" | "rules" | "resign" | "leave" | "practice" | null;
 
 function stored<T>(key: string, fallback: T): T {
   try {
@@ -183,6 +189,8 @@ const paths: Record<string, ReactNode> = {
       <circle cx="16" cy="11" r=".7" />
     </>
   ),
+  eye: <><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6-10-6-10-6Z" /><circle cx="12" cy="12" r="2.5" /></>,
+  shuffle: <><path d="M3 7h4c5 0 5 10 10 10h4m-4-4 4 4-4 4M3 17h4c2 0 3-2 4-4m3-2c1-2 2-4 3-4h4m-4-4 4 4-4 4" /></>,
 };
 function Icon({ name, size = 20 }: { name: string; size?: number }) {
   return (
@@ -226,6 +234,12 @@ export default function App() {
   >("connecting");
   const [rooms, setRooms] = useState<LobbyRoom[]>([]);
   const [onlineCount, setOnlineCount] = useState(0);
+  const [matchingCount, setMatchingCount] = useState(0);
+  const [matching, setMatching] = useState(false);
+  const [serverHistory, setServerHistory] = useState<ServerMatch[]>([]);
+  const [leaderboard, setLeaderboard] = useState<Score[]>([]);
+  const [profileId, setProfileId] = useState("");
+  const [replaySource, setReplaySource] = useState<Replay | null>(null);
   const [code, setCode] = useState(
     () =>
       new URLSearchParams(location.search)
@@ -255,12 +269,13 @@ export default function App() {
   const isOnline = Boolean(onlineRoom);
   const me = isOnline ? userId : "you";
   const myIndex = room.players.findIndex((p) => p.id === me);
+  const isSpectator = isOnline && myIndex === -1;
   const mySymbol = myIndex === 1 ? "O" : "X";
   const paused =
     isOnline &&
     room.status === "playing" &&
     room.players.some((p) => !p.online);
-  const myTurn = room.status === "playing" && room.turn === mySymbol && !paused;
+  const myTurn = !isSpectator && room.status === "playing" && room.turn === mySymbol && !paused;
   const canMove = myTurn && (!isOnline || connection === "online");
   const opponent = room.players.find((p) => p.id !== me);
   const remaining = room.deadline
@@ -269,7 +284,9 @@ export default function App() {
       ? Math.ceil(room.remaining / 1000)
       : 30;
   const lastMove = room.moves.at(-1)?.index;
-  const wins = history.filter((h) => h.result === "Thắng").length;
+  const localGames = history.filter((h) => h.mode !== "Online");
+  const wins = localGames.filter((h) => h.result === "Thắng").length;
+  const myScore = leaderboard.find((score) => score.id === profileId);
 
   function notify(message: string) {
     setToast(message);
@@ -317,12 +334,14 @@ export default function App() {
       socket.current = ws;
       ws.onopen = () => {
         let token = null;
+        let profileToken = null;
         try {
           token = sessionStorage.getItem("caro-session");
+          profileToken = sessionStorage.getItem("caro-profile");
         } catch {
           /* storage unavailable */
         }
-        ws.send(JSON.stringify({ type: "hello", token }));
+        ws.send(JSON.stringify({ type: "hello", token, profileToken }));
       };
       ws.onmessage = (event) => {
         if (disposed) return;
@@ -330,18 +349,23 @@ export default function App() {
         if (data.type === "welcome") {
           try {
             sessionStorage.setItem("caro-session", data.token);
+            if (data.profileToken) sessionStorage.setItem("caro-profile", data.profileToken);
           } catch {
             /* storage unavailable */
           }
           setUserId(data.id);
+          setProfileId(data.profileId || "");
           setConnection("online");
           setOffset(data.serverTime - Date.now());
           setOnlineRoom(null);
         } else if (data.type === "lobby") {
           setRooms(data.rooms);
           setOnlineCount(data.online);
+          setMatchingCount(data.matching || 0);
         } else if (data.type === "room") setOnlineRoom(data.room);
         else if (data.type === "left") setOnlineRoom(null);
+        else if (data.type === "matchmaking") setMatching(Boolean(data.waiting));
+        else if (data.type === "stats") { setServerHistory(data.history || []); setLeaderboard(data.leaderboard || []); }
         else if (data.type === "error") notify(data.message);
       };
       ws.onclose = (event) => {
@@ -351,6 +375,7 @@ export default function App() {
           return;
         }
         setConnection("offline");
+        setMatching(false);
         retry = setTimeout(connect, 1800);
       };
       ws.onerror = () => ws.close();
@@ -399,7 +424,7 @@ export default function App() {
     return () => clearTimeout(timer);
   }, [local, isOnline]);
   useEffect(() => {
-    if (room.status !== "finished") return;
+    if (room.status !== "finished" || isSpectator) return;
     const id = `${room.round}-${me}`;
     if (recorded.current.has(id)) return;
     recorded.current.add(id);
@@ -410,6 +435,8 @@ export default function App() {
       moves: room.moves.length,
       at: Date.now(),
       mode: isOnline ? "Online" : "Đấu với máy",
+      sequence: room.moves.map((move) => ({ ...move })),
+      players: room.players.map((player) => ({ name: player.name })),
     };
     setHistory((current) => {
       const next = [item, ...current.filter((h) => h.id !== id)].slice(0, 30);
@@ -484,7 +511,7 @@ export default function App() {
       document.getElementById("player-name")?.focus();
       return;
     }
-    if (isOnline) {
+    if (isOnline || matching) {
       notify("Hãy rời phòng hiện tại trước khi vào phòng khác.");
       return;
     }
@@ -511,9 +538,18 @@ export default function App() {
     setDialog(null);
   }
   function choosePractice() {
-    if (isOnline && room.status === "playing") setDialog("practice");
+    if (isOnline && room.status === "playing" && !isSpectator) setDialog("practice");
     else if (isOnline) startPractice();
     else setDialog(null);
+  }
+  function findMatch() {
+    if (!name.trim()) { notify("Nhập tên để tìm đối thủ."); document.getElementById("player-name")?.focus(); return; }
+    if (isOnline) { notify("Hãy rời phòng hiện tại trước."); return; }
+    if (send({ type: matching ? "cancelMatch" : "match", name: name.trim() })) setDialog(null);
+  }
+  function openReplay(replay: Replay) {
+    setReplaySource(replay);
+    setDialog("replay");
   }
   function undo() {
     if (isOnline || !local.moves.length || local.status === "finished") return;
@@ -552,7 +588,7 @@ export default function App() {
         ?.focus();
     }
   }
-  const resultText =
+  const resultText = isSpectator ? (room.winner ? `${room.players.find((p) => p.id === room.winner)?.name || "Người chơi"} chiến thắng!` : "Ván đấu hòa") :
     room.status === "finished"
       ? !room.winner
         ? "Một ván hòa đầy cân sức!"
@@ -588,7 +624,7 @@ export default function App() {
             onClick={() => setDialog(null)}
           >
             <Icon name="grid" />
-            Bàn cờ
+            <span className="nav-text">Bàn cờ</span>
             <span className="nav-active-dot" />
           </button>
           <button
@@ -596,21 +632,24 @@ export default function App() {
             onClick={() => setDialog("rooms")}
           >
             <Icon name="rooms" />
-            Phòng chơi<span className="count-badge">{rooms.length}</span>
+            <span className="nav-text">Phòng chơi</span><span className="count-badge">{rooms.length}</span>
           </button>
           <button
             className={`nav-item ${dialog === "history" ? "active" : ""}`}
             onClick={() => setDialog("history")}
           >
             <Icon name="history" />
-            Lịch sử đấu
+            <span className="nav-text">Lịch sử</span>
+          </button>
+          <button className={`nav-item ${dialog === "leaderboard" ? "active" : ""}`} onClick={() => setDialog("leaderboard")}>
+            <Icon name="trophy" /> <span className="nav-text">Xếp hạng</span>
           </button>
           <button
             className={`nav-item ${dialog === "rules" ? "active" : ""}`}
             onClick={() => setDialog("rules")}
           >
             <Icon name="book" />
-            Cách chơi
+            <span className="nav-text">Cách chơi</span>
           </button>
         </nav>
         <div className="sidebar-tip">
@@ -640,20 +679,20 @@ export default function App() {
       <div className="workspace">
         <header className="topbar">
           <div className="breadcrumb">
-            Không gian chơi <Icon name="chevron" size={14} />
+            <span>Không gian chơi</span> <Icon name="chevron" size={14} />
             <strong>Bàn cờ Caro</strong>
           </div>
           <div
             className={`connection ${connection === "online" ? "" : "disconnected"}`}
           >
             <span className="green-dot" />
-            {connection === "online"
+            <span className="connection-label">{connection === "online"
               ? "Server đang kết nối"
               : connection === "replaced"
                 ? "Phiên đã mở ở nơi khác"
                 : connection === "offline"
                   ? "Đang kết nối lại…"
-                  : "Đang kết nối…"}
+                  : "Đang kết nối…"}</span>
           </div>
           <span className="demo-label">DEMO · NHÓM 09</span>
         </header>
@@ -666,7 +705,7 @@ export default function App() {
               <h1>
                 Một nước cờ. <span>Một kết nối.</span>
               </h1>
-              <p>Gác lại một chút bận rộn, cùng nhau làm một ván Caro.</p>
+              <p>Một không gian chiến thuật để chơi, xem và kết nối cùng bạn bè.</p>
             </div>
             <button
               className="button secondary room-browse"
@@ -690,7 +729,7 @@ export default function App() {
               <Icon name="link" size={20} /><span>Đấu online<small>Tạo phòng, mời bạn bằng QR</small></span>
             </button>
           </div>
-          <p>{isOnline ? "Bạn đang ở phòng online. Chọn Đấu với máy để chuyển sang luyện tập." : "Bạn cầm X và đi trước. Bấm vào ô trống để đánh, Caro Bot sẽ tự đáp lại."}</p>
+          <p>{isSpectator ? `Bạn đang xem trực tiếp phòng #${room.id} cùng ${room.spectators || 0} khán giả.` : isOnline ? "Bạn đang ở phòng online. Chọn Đấu với máy để chuyển sang luyện tập." : "Bạn cầm X và đi trước. Bấm vào ô trống để đánh, Caro Bot sẽ tự đáp lại."}</p>
         </section>
         {!isOnline && invitedRoom && (
             <section
@@ -742,7 +781,7 @@ export default function App() {
                 </div>
                 <span className={`mode-badge ${isOnline ? "online-mode" : ""}`}>
                   <Icon name={isOnline ? "link" : "bot"} size={15} />
-                  {isOnline ? "Đấu online" : "Đấu với máy"}
+                  {isSpectator ? "Đang xem" : isOnline ? "Đấu online" : "Đấu với máy"}
                 </span>
               </div>
               <div className="player-strip">
@@ -808,6 +847,8 @@ export default function App() {
                     ? "Phòng đã sẵn sàng. Mời bạn bè vào chơi!"
                     : room.status === "finished"
                       ? resultText
+                      : isSpectator
+                        ? `Đang xem trực tiếp · ${room.spectators || 0} khán giả`
                       : paused
                         ? "Tạm dừng · chờ đối thủ kết nối lại (30 giây)"
                         : myTurn
@@ -884,7 +925,7 @@ export default function App() {
                     <strong>{resultText}</strong>
                     <p>{reasonText[room.reason || "five"]}</p>
                   </div>
-                  <button
+                  {!isSpectator && <button
                     className="button primary"
                     disabled={isOnline && room.rematch.includes(me)}
                     onClick={() =>
@@ -895,8 +936,8 @@ export default function App() {
                     {isOnline && room.rematch.includes(me)
                       ? "Đợi đối thủ…"
                       : "Chơi lại"}
-                  </button>
-                  {isOnline &&
+                  </button>}
+                  {isOnline && !isSpectator &&
                     room.rematch.length > 0 &&
                     !room.rematch.includes(me) && (
                       <small>Đối thủ muốn chơi ván mới!</small>
@@ -922,6 +963,9 @@ export default function App() {
                 </button>
               </div>
               <div className="game-actions">
+                <button className="text-button" disabled={!room.moves.length || (isOnline && room.status !== "finished")} onClick={() => openReplay({ id: room.round, players: room.players, moves: room.moves, reason: room.reason })}>
+                  <Icon name="history" size={17} /> Xem lại ván
+                </button>
                 <button
                   className="text-button"
                   disabled={
@@ -939,7 +983,7 @@ export default function App() {
                 </span>
                 <button
                   className="text-button resign"
-                  disabled={room.status !== "playing"}
+                  disabled={room.status !== "playing" || isSpectator}
                   onClick={() => setDialog("resign")}
                 >
                   <Icon name="flag" size={17} />
@@ -975,7 +1019,8 @@ export default function App() {
                 />
                 {isOnline ? (
                   <>
-                    <InvitePanel roomId={room.id} notify={notify} />
+                    {!isSpectator && <InvitePanel roomId={room.id} notify={notify} />}
+                    {isSpectator && <div className="spectator-card"><Icon name="eye" size={23} /><strong>Chế độ khán giả</strong><span>Bạn đang theo dõi ván cờ trực tiếp. Nước đi và chat chỉ dành cho hai người chơi.</span></div>}
                     <button
                       className="leave-button"
                       onClick={() => setDialog("leave")}
@@ -986,9 +1031,17 @@ export default function App() {
                   </>
                 ) : (
                   <>
+                    <div className="matchmaking-box">
+                      <span className="matchmaking-kicker"><Icon name="shuffle" size={16} /> GHÉP TRẬN TỰ ĐỘNG</span>
+                      <strong>{matching ? "Đang tìm đối thủ…" : "Sẵn sàng thử sức?"}</strong>
+                      <p>{matching ? `${matchingCount} người đang trong hàng chờ` : "Server sẽ ghép bạn với người chơi khác đang chờ."}</p>
+                      <button className={`button full ${matching ? "secondary" : "primary"}`} disabled={connection !== "online"} onClick={findMatch}>
+                        {matching ? "Hủy tìm trận" : "Tìm đối thủ ngay"}
+                      </button>
+                    </div>
                     <button
                       className="button white full create-button"
-                      disabled={connection !== "online"}
+                      disabled={connection !== "online" || matching}
                       onClick={() => enterRoom()}
                     >
                       <Icon name="plus" size={18} />
@@ -1025,7 +1078,7 @@ export default function App() {
                         type="submit"
                         title="Vào phòng"
                         aria-label="Vào phòng"
-                        disabled={connection !== "online" || code.length !== 6}
+                        disabled={connection !== "online" || matching || code.length !== 6}
                       >
                         <Icon name="arrow" size={20} />
                       </button>
@@ -1101,13 +1154,13 @@ export default function App() {
                         ? "Gửi một lời chào…"
                         : "Vào phòng để trò chuyện…"
                     }
-                    disabled={!isOnline || connection !== "online"}
+                    disabled={!isOnline || isSpectator || connection !== "online"}
                   />
                   <button
                     aria-label="Gửi tin nhắn"
                     type="submit"
                     disabled={
-                      !isOnline || !chat.trim() || connection !== "online"
+                      !isOnline || isSpectator || !chat.trim() || connection !== "online"
                     }
                   >
                     <Icon name="send" size={17} />
@@ -1146,12 +1199,12 @@ export default function App() {
                 <Icon name="trophy" size={21} />
               </span>
               <strong>
-                {wins}
+                {(myScore?.wins ?? 0) + wins}
                 <small>Ván thắng</small>
               </strong>
               <span className="stat-divider" />
               <strong>
-                {history.length}
+                {(myScore?.played ?? 0) + localGames.length}
                 <small>Ván đã chơi</small>
               </strong>
               <button
@@ -1204,6 +1257,10 @@ export default function App() {
                   ? "Tìm bạn cùng chơi"
                   : dialog === "history"
                     ? "Những ván cờ đã qua"
+                  : dialog === "leaderboard"
+                    ? "Bảng xếp hạng"
+                  : dialog === "replay"
+                    ? "Xem lại ván đấu"
                     : dialog === "rules"
                       ? "Caro, dễ chơi mà khó đoán."
                       : dialog === "resign"
@@ -1223,8 +1280,9 @@ export default function App() {
             {dialog === "rooms" && (
               <>
                 <p className="modal-description">
-                  Chọn một phòng đang chờ, hoặc tạo phòng và gửi mã cho bạn bè.
+                  Chọn phòng để tham gia hoặc theo dõi trực tiếp.
                 </p>
+                <button className={`button full ${matching ? "secondary" : "primary"}`} disabled={isOnline || connection !== "online"} onClick={findMatch}>{matching ? "Hủy tìm trận" : `Tìm đối thủ tự động${matchingCount ? ` · ${matchingCount} đang chờ` : ""}`}</button>
                 {rooms.length ? (
                   <div className="room-list">
                     {rooms.map((item) => (
@@ -1235,32 +1293,26 @@ export default function App() {
                         <div>
                           <strong>Phòng của {item.host}</strong>
                           <small>
-                            #{item.id} · {item.count}/2 người chơi
+                            #{item.id} · {item.count}/2 người chơi · {item.spectators || 0} đang xem
                           </small>
                         </div>
-                        <button
-                          className="button primary"
-                          disabled={isOnline || connection !== "online"}
-                          onClick={() => enterRoom(item.id)}
-                        >
-                          Tham gia
-                          <Icon name="arrow" size={16} />
-                        </button>
+                        <div className="room-row-actions">
+                          {item.status === "waiting" && <button className="button primary" disabled={isOnline || matching || connection !== "online"} onClick={() => enterRoom(item.id)}>Tham gia</button>}
+                          <button className="button secondary" disabled={isOnline || matching || connection !== "online"} onClick={() => { if (send({ type: "spectate", roomId: item.id })) setDialog(null); }}><Icon name="eye" size={16} /> Xem</button>
+                        </div>
                       </div>
                     ))}
                   </div>
                 ) : (
                   <div className="modal-empty">
                     <Icon name="rooms" size={36} />
-                    <h3>Chiếc bàn đầu tiên đang chờ bạn.</h3>
-                    <p>
-                      Chưa có phòng trống. Hãy tạo phòng và rủ một người bạn!
-                    </p>
+                    <h3>Chưa có phòng đang hoạt động.</h3>
+                    <p>Hãy tạo phòng hoặc tìm đối thủ tự động!</p>
                   </div>
                 )}
                 <button
                   className="button primary full"
-                  disabled={isOnline || connection !== "online"}
+                  disabled={isOnline || matching || connection !== "online"}
                   onClick={() => enterRoom()}
                 >
                   <Icon name="plus" size={18} />
@@ -1271,11 +1323,21 @@ export default function App() {
             {dialog === "history" && (
               <>
                 <p className="modal-description">
-                  Lưu tối đa 30 ván gần nhất trên trình duyệt này.
+                  Ván online lưu trên server; ván đấu máy lưu trên trình duyệt.
                 </p>
-                {history.length ? (
+                {serverHistory.length || history.some((item) => item.mode !== "Online") ? (
                   <div className="history-list">
-                    {history.map((item) => (
+                    {serverHistory.map((match) => {
+                      const opponent = match.players.find((p) => p.id !== profileId);
+                      const result = !match.winner ? "Hòa" : match.winner === profileId ? "Thắng" : "Thua";
+                      return <div className="history-row" key={match.id}>
+                        <span className={`result-badge ${result === "Thắng" ? "win" : result === "Thua" ? "loss" : ""}`}>{result}</span>
+                        <div><strong>vs. {opponent?.name || "Đối thủ"}</strong><small>Online · {match.moves.length} nước đi</small></div>
+                        <time>{new Date(match.at).toLocaleString("vi-VN", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}</time>
+                        <button className="button secondary" onClick={() => openReplay(match)}>Xem lại</button>
+                      </div>;
+                    })}
+                    {history.filter((item) => item.mode !== "Online").map((item) => (
                       <div className="history-row" key={item.id}>
                         <span
                           className={`result-badge ${item.result === "Thắng" ? "win" : item.result === "Thua" ? "loss" : ""}`}
@@ -1296,6 +1358,7 @@ export default function App() {
                             minute: "2-digit",
                           })}
                         </time>
+                        {item.sequence && <button className="button secondary" onClick={() => openReplay({ id: item.id, players: item.players || [{ name: "Bạn" }, { name: "Caro Bot" }], moves: item.sequence!, reason: null })}>Xem lại</button>}
                       </div>
                     ))}
                   </div>
@@ -1308,6 +1371,11 @@ export default function App() {
                 )}
               </>
             )}
+            {dialog === "leaderboard" && <>
+              <p className="modal-description">Thành tích các ván online đã hoàn tất, lưu trên server. Tên hiển thị do người chơi tự chọn.</p>
+              {leaderboard.length ? <div className="leaderboard-list">{leaderboard.map((score, index) => <div className="leaderboard-row" key={score.id}><span className="leaderboard-rank">{String(index + 1).padStart(2, "0")}</span><strong>{score.name}{score.id === profileId ? " · Bạn" : ""}</strong><span>{score.wins} thắng</span><small>{score.played} ván · {score.draws} hòa</small></div>)}</div> : <div className="modal-empty"><Icon name="trophy" size={36} /><h3>Chưa có kết quả online.</h3><p>Hoàn thành một trận để xuất hiện trên bảng xếp hạng.</p></div>}
+            </>}
+            {dialog === "replay" && replaySource && <ReplayPanel replay={replaySource} />}
             {dialog === "rules" && (
               <>
                 <p className="modal-description">
@@ -1346,9 +1414,7 @@ export default function App() {
                 <div className="rule-note">
                   <Icon name="shield" size={18} />
                   <span>
-                    Phòng và chat lưu trong RAM, sẽ xóa khi server khởi động
-                    lại. Tên hiển thị tự chọn, không có đăng nhập. Máy dùng
-                    chiến thuật cơ bản.
+                    Phòng và chat lưu trong RAM. Lịch sử online và bảng xếp hạng lưu trên server, không có đăng nhập. Máy dùng chiến thuật cơ bản.
                   </span>
                 </div>
                 <button
@@ -1367,7 +1433,7 @@ export default function App() {
                     ? "Rời ván online đang chơi sẽ tính là thua. Sau đó bạn sẽ bắt đầu một ván mới với Caro Bot."
                     : dialog === "resign"
                     ? "Đầu hàng sẽ tính là thua ván này. Bạn có thể bắt đầu một ván mới sau đó."
-                    : room.status === "playing"
+                    : room.status === "playing" && !isSpectator
                       ? "Rời phòng trong lúc chơi sẽ tính là thua. Đối thủ vẫn có thể xem kết quả ván đấu."
                       : "Bạn sẽ quay về bàn cờ luyện tập với máy."}
                 </p>

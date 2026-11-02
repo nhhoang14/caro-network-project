@@ -5,13 +5,15 @@ export const TURN_MS = 30_000;
 export const RECONNECT_MS = 30_000;
 
 export class RoomService {
-  constructor(now = () => Date.now()) {
+  constructor(now = () => Date.now(), history = null) {
     this.now = now;
+    this.history = history;
     this.sessions = new Map();
     this.rooms = new Map();
+    this.queue = new Set();
   }
 
-  connect(token, send, close) {
+  connect(token, send, close, profileToken = null) {
     let user = typeof token === "string" ? this.sessions.get(token) : null;
     if (!user) {
       if (this.sessions.size >= 1000)
@@ -21,6 +23,7 @@ export class RoomService {
         token: randomBytes(24).toString("hex"),
         name: "Người chơi",
         roomId: null,
+        role: null,
       };
       this.sessions.set(user.token, user);
     }
@@ -30,23 +33,36 @@ export class RoomService {
     user.close = close;
     user.online = true;
     user.lastSeen = this.now();
+    if (this.history && !user.profile) user.profile = this.history.profile(profileToken);
     oldClose?.();
     send({
       type: "welcome",
       id: user.id,
       token: user.token,
       serverTime: this.now(),
+      profileToken: user.profile?.token,
+      profileId: user.profile?.id,
     });
     const room = this.rooms.get(user.roomId);
     if (room) {
-      if (room.status === "playing" && room.players.every((p) => p.online)) {
+      if (user.role === "player" && room.status === "playing" && room.players.every((p) => p.online)) {
         room.deadline = this.now() + (room.remaining ?? TURN_MS);
         room.remaining = null;
       }
       this.broadcast(room);
     }
     this.lobby();
+    this.stats(user);
     return { user, connectionId: user.connectionId };
+  }
+
+  stats(user) {
+    if (!this.history) return;
+    this.send(user, { type: "stats", history: this.history.personal(user.profile.id), leaderboard: this.history.leaderboard() });
+  }
+
+  allStats() {
+    this.sessions.forEach((user) => this.stats(user));
   }
 
   send(user, payload) {
@@ -74,27 +90,31 @@ export class RoomService {
       remaining: room.remaining,
       messages: room.messages,
       rematch: [...room.rematch],
+      spectators: room.spectators.size,
       serverTime: this.now(),
     };
   }
 
   broadcast(room) {
     const payload = { type: "room", room: this.snapshot(room) };
-    room.players.forEach((p) => this.send(p, payload));
+    [...room.players, ...room.spectators].forEach((p) => this.send(p, payload));
   }
 
   lobby() {
     const rooms = [...this.rooms.values()]
-      .filter((r) => r.status === "waiting")
+      .filter((r) => r.players.length > 0)
       .map((r) => ({
         id: r.id,
         host: r.players[0].name,
         count: r.players.length,
+        status: r.status,
+        spectators: r.spectators.size,
       }));
     const payload = {
       type: "lobby",
       rooms,
       online: [...this.sessions.values()].filter((p) => p.online).length,
+      matching: this.queue.size,
     };
     this.sessions.forEach((p) => this.send(p, payload));
   }
@@ -130,13 +150,54 @@ export class RoomService {
       deadline: null,
       remaining: null,
     });
+    if (this.history && room.players.length === 2) {
+      this.history.record(room, this.now());
+      this.allStats();
+    }
+  }
+
+  createRoom(user) {
+    if (this.rooms.size >= 100) return null;
+    let id;
+    do { id = randomBytes(3).toString("hex").toUpperCase(); } while (this.rooms.has(id));
+    const room = {
+      id, round: randomUUID(), players: [user], spectators: new Set(),
+      board: emptyBoard(), moves: [], turn: "X", status: "waiting",
+      winner: null, line: [], reason: null, deadline: null, remaining: null,
+      messages: [], rematch: new Set(),
+    };
+    this.rooms.set(id, room);
+    user.roomId = id;
+    user.role = "player";
+    return room;
+  }
+
+  joinRoom(user, room) {
+    room.players.push(user);
+    user.roomId = room.id;
+    user.role = "player";
+    this.reset(room);
+    if (!room.players.every((p) => p.online)) {
+      room.remaining = TURN_MS;
+      room.deadline = null;
+    }
   }
 
   leave(user) {
+    if (this.queue.delete(user)) this.send(user, { type: "matchmaking", waiting: false });
     const room = this.rooms.get(user.roomId);
     user.roomId = null;
+    const role = user.role;
+    user.role = null;
     this.send(user, { type: "left" });
-    if (!room) return;
+    if (!room) { this.lobby(); return; }
+    if (role === "spectator") {
+      room.spectators.delete(user);
+      if (!room.players.length && !room.spectators.size) this.rooms.delete(room.id);
+      else this.broadcast(room);
+      this.lobby();
+      return;
+    }
     if (room.status === "playing") {
       const other = room.players.find((p) => p.id !== user.id);
       this.finish(room, other?.id ?? null, "leave");
@@ -144,8 +205,15 @@ export class RoomService {
       this.broadcast(room);
     }
     room.players = room.players.filter((p) => p.id !== user.id);
-    if (!room.players.length) this.rooms.delete(room.id);
-    else {
+    if (!room.players.length) {
+      for (const spectator of room.spectators) {
+        spectator.roomId = null;
+        spectator.role = null;
+        this.send(spectator, { type: "left" });
+      }
+      room.spectators.clear();
+      this.rooms.delete(room.id);
+    } else {
       room.rematch.clear();
       this.broadcast(room);
     }
@@ -156,38 +224,61 @@ export class RoomService {
     if (!data || typeof data !== "object" || typeof data.type !== "string")
       return this.error(user, "Yêu cầu không hợp lệ.");
     user.lastSeen = this.now();
-    if (data.type === "create" || data.type === "join") {
+    if (data.type === "stats") return this.stats(user);
+    if (data.type === "cancelMatch") {
+      this.queue.delete(user);
+      this.send(user, { type: "matchmaking", waiting: false });
+      this.lobby();
+      return;
+    }
+    if (data.type === "match") {
       if (user.roomId) return this.error(user, "Hãy rời phòng hiện tại trước.");
+      const name = typeof data.name === "string" ? data.name.trim().slice(0, 24) : "";
+      if (!name) return this.error(user, "Bạn hãy nhập tên trước khi tìm trận.");
+      user.name = name;
+      if (user.profile) this.history.rename(user.profile, name);
+      if (this.queue.has(user)) return;
+      const opponent = [...this.queue].find((p) => p.online && p.id !== user.id && !p.roomId);
+      if (opponent) {
+        this.queue.delete(opponent);
+        const room = this.createRoom(opponent);
+        if (!room) return this.error(user, "Đã đạt giới hạn 100 phòng.");
+        this.send(opponent, { type: "matchmaking", waiting: false });
+        this.send(user, { type: "matchmaking", waiting: false });
+        this.joinRoom(user, room);
+        this.broadcast(room);
+        this.lobby();
+      } else {
+        this.queue.add(user);
+        this.send(user, { type: "matchmaking", waiting: true });
+        this.lobby();
+      }
+      return;
+    }
+    if (data.type === "spectate") {
+      if (user.roomId || this.queue.has(user)) return this.error(user, "Hãy rời phòng hoặc hủy tìm trận trước.");
+      const id = typeof data.roomId === "string" ? data.roomId.trim().toUpperCase() : "";
+      const room = this.rooms.get(id);
+      if (!room || !room.players.length) return this.error(user, "Không tìm thấy phòng để xem.");
+      user.roomId = id;
+      user.role = "spectator";
+      room.spectators.add(user);
+      this.broadcast(room);
+      this.lobby();
+      return;
+    }
+    if (data.type === "create" || data.type === "join") {
+      if (user.roomId || this.queue.has(user)) return this.error(user, "Hãy rời phòng hoặc hủy tìm trận trước.");
       const name =
         typeof data.name === "string" ? data.name.trim().slice(0, 24) : "";
       if (!name)
         return this.error(user, "Bạn hãy nhập tên trước khi vào phòng.");
       user.name = name;
+      if (user.profile) this.history.rename(user.profile, name);
       let room;
       if (data.type === "create") {
-        if (this.rooms.size >= 100)
-          return this.error(user, "Đã đạt giới hạn 100 phòng.");
-        let id;
-        do {
-          id = randomBytes(3).toString("hex").toUpperCase();
-        } while (this.rooms.has(id));
-        room = {
-          id,
-          round: randomUUID(),
-          players: [user],
-          board: emptyBoard(),
-          moves: [],
-          turn: "X",
-          status: "waiting",
-          winner: null,
-          line: [],
-          reason: null,
-          deadline: null,
-          remaining: null,
-          messages: [],
-          rematch: new Set(),
-        };
-        this.rooms.set(id, room);
+        room = this.createRoom(user);
+        if (!room) return this.error(user, "Đã đạt giới hạn 100 phòng.");
       } else {
         const id =
           typeof data.roomId === "string"
@@ -198,12 +289,7 @@ export class RoomService {
           return this.error(user, "Không tìm thấy phòng. Hãy kiểm tra lại mã.");
         if (room.players.length >= 2 || room.status !== "waiting")
           return this.error(user, "Phòng đã đủ người hoặc đã bắt đầu.");
-        room.players.push(user);
-        this.reset(room);
-        if (!room.players.every((p) => p.online)) {
-          room.remaining = TURN_MS;
-          room.deadline = null;
-        }
+        this.joinRoom(user, room);
       }
       user.roomId = room.id;
       this.broadcast(room);
@@ -213,6 +299,7 @@ export class RoomService {
     if (data.type === "leave") return this.leave(user);
     const room = this.rooms.get(user.roomId);
     if (!room) return this.error(user, "Bạn chưa ở trong phòng chơi.");
+    if (user.role !== "player") return this.error(user, "Khán giả chỉ có thể theo dõi ván đấu.");
     if (data.type === "move") {
       if (room.status !== "playing")
         return this.error(user, "Ván đấu chưa bắt đầu hoặc đã kết thúc.");
@@ -286,9 +373,10 @@ export class RoomService {
     if (user.connectionId !== connectionId) return;
     user.online = false;
     user.lastSeen = this.now();
+    if (this.queue.delete(user)) this.send(user, { type: "matchmaking", waiting: false });
     const room = this.rooms.get(user.roomId);
     if (room) {
-      if (room.status === "playing" && room.remaining == null) {
+      if (user.role === "player" && room.status === "playing" && room.remaining == null) {
         room.remaining = Math.max(0, room.deadline - this.now());
         room.deadline = null;
       }
