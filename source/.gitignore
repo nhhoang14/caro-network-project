@@ -12,6 +12,7 @@
 
 # Node / npm artifacts
 node_modules/
+server/data/
 client/dist/
 
 # Maven build output

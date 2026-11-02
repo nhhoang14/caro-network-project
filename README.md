@@ -1,8 +1,8 @@
 # Caro Club — Game Caro online
 
-Bản demo bài tập lớn **Lập trình mạng · Nhóm 09**. Chơi Caro 15×15 với máy hoặc đấu hai người qua WebSocket, có tạo phòng, chat, đếm giờ và kết nối lại.
+Bản demo bài tập lớn **Lập trình mạng · Nhóm 09**. Chơi Caro 15×15 với máy hoặc đấu hai người qua WebSocket, có tạo phòng, chat, đếm giờ, kết nối lại, ghép trận tự động và khán giả xem trực tiếp.
 
-![Giao diện Caro Club và một ván đấu online](statics/demo.jpg)
+Giao diện responsive lấy cảm hứng từ iOS, có thanh tab ở cạnh dưới trên điện thoại và các hộp thoại dạng bottom sheet.
 
 | Thành viên | MSSV |
 | --- | --- |
@@ -40,6 +40,8 @@ npm start
 4. Luân phiên đánh, gửi chat và quan sát bàn cờ đồng bộ. Mỗi lượt online có 30 giây.
 5. Người có từ 5 quân liên tiếp thắng. Có thể đầu hàng để demo kết thúc; cả hai bấm **Chơi lại** để bắt đầu ván mới và đổi X/O.
 6. Tải lại trang trong lúc chơi: token theo tab giúp khôi phục phiên. Đồng hồ tạm dừng khi một người mất kết nối, tối đa 30 giây; quá hạn xử thua người mất kết nối.
+7. Bấm **Xem lại ván** để tua từng nước hoặc phát tự động. Mở **Phòng chơi** ở tab thứ ba để vào bằng nút **Xem** mà không chiếm ghế chơi.
+8. Hai tab khác có thể bấm **Tìm đối thủ ngay** để được ghép tự động. Sau một trận online, mở **Lịch sử đấu** và **Bảng xếp hạng** để xem thành tích lưu trên server.
 
 Đấu qua LAN: máy chủ chạy server; hai máy cùng mạng mở `http://<IPv4-may-chu>:3000`. Xem IPv4 bằng `ipconfig`. QR và link mời tự chọn IPv4 LAN kể cả khi máy chủ mở trang bằng localhost. Nếu Windows hỏi tường lửa, chủ máy cần cho phép Node.js trên mạng riêng đang dùng.
 
@@ -53,7 +55,11 @@ npm start
 - Chat trong phòng, tối đa 300 ký tự/tin, giữ 60 tin gần nhất.
 - Hai người đồng ý để chơi lại; tự đổi bên ở ván mới.
 - Kết nối lại trong 30 giây, heartbeat WebSocket, dọn phiên vắng mặt.
-- Lịch sử 30 ván trên trình duyệt, thống kê cá nhân và bật/tắt âm thanh.
+- Lịch sử 30 ván đấu máy trên trình duyệt, thống kê cá nhân và bật/tắt âm thanh.
+- Phát lại từng nước cờ của ván hiện tại, lịch sử online hoặc ván đấu máy mới hoàn tất.
+- Khán giả xem trực tiếp phòng đang chơi; không được đánh cờ, chat, đầu hàng hoặc yêu cầu chơi lại.
+- Ghép trận tự động với hàng chờ và nút hủy.
+- Lịch sử online và bảng xếp hạng lưu bền vững tại `source/server/data/history.json` (tối đa 5.000 trận); hồ sơ dùng mã ngẫu nhiên lưu trên trình duyệt, không cần tài khoản.
 
 **Luật demo:** từ 5 quân liên tiếp theo ngang/dọc/chéo là thắng, kể cả bị chặn cả hai đầu. Bàn kín không có người thắng thì hòa. Đấu máy không giới hạn giờ; online hết giờ, đầu hàng hoặc rời phòng trong khi chơi sẽ thua.
 
@@ -64,15 +70,16 @@ React + TypeScript (Browser A) ──┐
                                ├── HTTP + WebSocket ── Node.js server
 React + TypeScript (Browser B) ──┘                       ├── RoomService
                                                        ├── Game rules
-                                                       └── RAM: rooms / sessions / chat
+                                                       ├── RAM: rooms / sessions / chat
+                                                       └── JSON: online history / profiles
 ```
 
 | Thành phần | Công nghệ demo | Vai trò |
 | --- | --- | --- |
-| Client | React 19, TypeScript, Vite 6 | Giao diện, WebSocket client, bot |
+| Client | React 19, TypeScript, Vite 6, Inter Variable | Giao diện, WebSocket client, bot; font đóng gói local |
 | Server | Node.js 22+, thư viện ws | HTTP, WebSocket, quản lý phòng, đồng hồ |
 | Luật cờ | JavaScript module dùng chung | Kiểm tra thắng và chiến thuật máy |
-| Dữ liệu | RAM + browser storage | Phòng/chat trên server; tên/lịch sử trên trình duyệt; token theo tab |
+| Dữ liệu | RAM + JSON + browser storage | Phòng/chat trên RAM; lịch sử online và hồ sơ trên file JSON; lịch sử đấu máy trên trình duyệt; phiên theo tab |
 | Kiểm thử | node:test | Luật cờ, quản lý phòng, hai client WebSocket thật |
 
 **Khác định hướng ban đầu:** thiết kế ban đầu dự kiến Java/Spring Boot và PostgreSQL. Demo này dùng Node.js để chạy bằng một bộ công cụ; chưa có Spring Boot/PostgreSQL. Có thể chuyển RoomService và giao thức sang backend Java ở giai đoạn tiếp theo.
@@ -93,13 +100,16 @@ Client mở `/ws`, gửi `hello` trước hành động khác. Token do server s
 | Kết nối / tiếp tục phiên | `{ "type": "hello", "token": null }` |
 | Tạo phòng | `{ "type": "create", "name": "An" }` |
 | Tham gia | `{ "type": "join", "name": "Bình", "roomId": "A1B2C3" }` |
+| Ghép trận / hủy | `{ "type": "match", "name": "An" }` / `{ "type": "cancelMatch" }` |
+| Xem phòng | `{ "type": "spectate", "roomId": "A1B2C3" }` |
 | Đánh cờ | `{ "type": "move", "index": 112 }` |
 | Chat | `{ "type": "chat", "text": "Xin chào!" }` |
 | Đầu hàng | `{ "type": "resign" }` |
 | Đồng ý ván mới | `{ "type": "rematch" }` |
 | Rời phòng | `{ "type": "leave" }` |
+| Làm mới thống kê | `{ "type": "stats" }` |
 
-Chỉ số ô 0–224, bằng `row * 15 + column` (hàng/cột từ 0). Server gửi `welcome` (id, token, giờ server), `lobby` (phòng chờ, số phiên online), `room` (snapshot bàn cờ, người chơi, lượt, deadline, chat, kết quả), `left`, `error`. Mỗi nước hợp lệ tạo một snapshot gửi cả hai người. Chat cũng gửi snapshot đầy đủ để giữ giao thức đơn giản cho demo.
+Chỉ số ô 0–224, bằng `row * 15 + column` (hàng/cột từ 0). `hello` có thể gửi thêm `profileToken` đã lưu trong `sessionStorage`. Server gửi `welcome` (id, token phiên, profileId, profileToken, giờ server), `lobby` (các phòng gồm trạng thái/số khán giả, số phiên online, số người chờ ghép), `matchmaking`, `stats` (30 trận online gần nhất của hồ sơ và 20 vị trí bảng xếp hạng), `room` (snapshot bàn cờ, người chơi, khán giả, lượt, deadline, chat, kết quả), `left`, `error`. Mỗi nước hợp lệ tạo một snapshot gửi người chơi và khán giả. Chat cũng gửi snapshot đầy đủ để giữ giao thức đơn giản cho demo.
 
 ## Cấu trúc
 
@@ -122,16 +132,21 @@ caro-network-project/
     │       ├── main.tsx
     │       ├── App.tsx
     │       ├── InvitePanel.tsx   # QR và link mời LAN/Internet
-    │       └── styles.css
+    │       ├── ReplayPanel.tsx   # Phát lại từng nước
+    │       ├── styles.css
+    │       └── ios.css          # Lớp giao diện iOS, tab bar và bottom sheet
     ├── server/
     │   ├── README.md
     │   ├── index.mjs            # HTTP, WebSocket, heartbeat, phục vụ giao diện
     │   ├── connection.mjs       # Chọn địa chỉ LAN, PUBLIC_URL, kiểm tra Origin
     │   ├── rooms.mjs            # Phòng, phiên, nước đi, chat, đồng hồ
+    │   ├── history.mjs          # Lưu lịch sử online, hồ sơ, bảng xếp hạng
+    │   ├── data/                # Tự tạo khi chạy, không commit
     │   └── test/
     │       ├── game.test.mjs
     │       ├── connection.test.mjs
     │       ├── rooms.test.mjs
+    │       ├── features.test.mjs
     │       └── network.test.mjs
     └── shared/
         ├── game.mjs            # Luật cờ, bot
@@ -140,12 +155,12 @@ caro-network-project/
 
 ## Giới hạn demo
 
-- Phòng, phiên, chat lưu RAM, mất khi khởi động lại server. Tối đa 100 phòng và 1.000 phiên.
-- Không có đăng nhập, PostgreSQL, bảng xếp hạng chung, hoặc xem lại lịch sử nước đi.
-- Lịch sử trình duyệt không phải dữ liệu xác thực, có thể mất khi xóa dữ liệu. Luyện tập không được server xác nhận.
+- Phòng, phiên và chat lưu RAM, mất khi khởi động lại server. Tối đa 100 phòng và 1.000 phiên; lịch sử online và hồ sơ lưu file JSON, tối đa 5.000 trận gần nhất.
+- Không có đăng nhập hoặc PostgreSQL. Bảng xếp hạng theo hồ sơ của từng tab; đóng tab hoặc xóa sessionStorage có thể làm mất mã truy cập hồ sơ, dù file lịch sử vẫn còn. Đây chưa phải cơ chế chống gian lận danh tính.
+- Lịch sử đấu máy lưu trên trình duyệt, có thể mất khi xóa dữ liệu. Luyện tập không được server xác nhận. Các mục lịch sử cũ trước bản nâng cấp không có chuỗi nước đi để phát lại.
 - Một phiên chỉ có một kết nối. Tab nhân bản có thể dùng chung token; mở tab độc lập/trình duyệt khác để demo hai người.
 - Server giới hạn payload 8 KB, tốc độ gói tin/chat và kiểm tra Origin cùng host cho trình duyệt. Local/LAN dùng HTTP; triển khai Internet cần HTTPS/WSS, xác thực và lưu trữ bền vững.
-- Google Fonts là tài nguyên tùy chọn, có font hệ thống dự phòng. Sau cài thư viện và build, game chạy local không cần dịch vụ bên ngoài.
+- Font Inter Variable được đóng gói cùng bản build và có font hệ thống dự phòng. Sau cài thư viện và build, game chạy local không cần dịch vụ bên ngoài.
 
 ## Quét QR bằng điện thoại
 

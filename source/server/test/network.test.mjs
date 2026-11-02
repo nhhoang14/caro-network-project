@@ -1,6 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { WebSocket } from "ws";
 
@@ -8,11 +11,12 @@ test(
   "HTTP and two real WebSocket clients: room, moves, chat, resume and rematch",
   { timeout: 20000 },
   async (t) => {
+    const dataDir = mkdtempSync(path.join(tmpdir(), "caro-network-test-"));
     const child = spawn(
       process.execPath,
       [fileURLToPath(new URL("../index.mjs", import.meta.url))],
       {
-        env: { ...process.env, PORT: "0" },
+        env: { ...process.env, PORT: "0", HISTORY_FILE: path.join(dataDir, "history.json") },
         stdio: ["ignore", "pipe", "pipe"],
       },
     );
@@ -20,6 +24,7 @@ test(
     t.after(() => {
       sockets.forEach((s) => s.terminate());
       child.kill();
+      rmSync(dataDir, { recursive: true, force: true });
     });
     const port = await new Promise((resolve, reject) => {
       let output = "";
@@ -89,8 +94,13 @@ test(
     const waiting = (await a.wait((m) => m.type === "room")).room;
     assert.equal(waiting.status, "waiting");
     b.send({ type: "join", name: "Network O", roomId: waiting.id });
-    await a.wait((m) => m.type === "room" && m.room.status === "playing");
+    const started = (await a.wait((m) => m.type === "room" && m.room.status === "playing")).room;
     await b.wait((m) => m.type === "room" && m.room.status === "playing");
+    const watcher = await client();
+    watcher.send({ type: "spectate", roomId: waiting.id });
+    await watcher.wait((m) => m.type === "room" && m.room.spectators === 1);
+    watcher.send({ type: "move", index: 112 });
+    assert.equal((await watcher.wait((m) => m.type === "error")).type, "error");
     a.send({ type: "move", index: 112 });
     const ar = await a.wait(
       (m) => m.type === "room" && m.room.moves.length === 1,
@@ -99,6 +109,9 @@ test(
       (m) => m.type === "room" && m.room.moves.length === 1,
     );
     assert.deepEqual(ar.room.board, br.room.board);
+    assert.equal((await watcher.wait((m) => m.type === "room" && m.room.moves.length === 1)).room.board[112], "X");
+    watcher.send({ type: "leave" });
+    await watcher.wait((m) => m.type === "left");
     b.send({ type: "move", index: 112 });
     assert.equal((await b.wait((m) => m.type === "error")).type, "error");
     b.send({ type: "chat", text: "Xin chào qua WebSocket!" });
@@ -130,7 +143,7 @@ test(
         m.type === "room" &&
         m.room.status === "playing" &&
         m.room.moves.length === 0 &&
-        m.room.round !== waiting.round,
+        m.room.round !== started.round,
     );
     assert.equal(rematch.room.players[0].id, b.welcome.id);
     b.send({ type: "leave" });

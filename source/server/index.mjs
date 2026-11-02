@@ -5,6 +5,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { WebSocketServer, WebSocket } from "ws";
 import { RoomService } from "./rooms.mjs";
+import { HistoryStore } from "./history.mjs";
 import {
   connectionInfo,
   normalizePublicUrl,
@@ -16,7 +17,8 @@ const dist = path.join(sourceRoot, "client", "dist");
 const dev = process.argv.includes("--dev");
 const port = Number(process.env.PORT || 3000);
 const publicUrl = normalizePublicUrl(process.env.PUBLIC_URL);
-const service = new RoomService();
+const history = new HistoryStore(process.env.HISTORY_FILE || path.join(sourceRoot, "server", "data", "history.json"));
+const service = new RoomService(() => Date.now(), history);
 let vite;
 const mime = {
   ".html": "text/html; charset=utf-8",
@@ -25,6 +27,7 @@ const mime = {
   ".svg": "image/svg+xml",
   ".png": "image/png",
   ".ico": "image/x-icon",
+  ".woff2": "font/woff2",
 };
 const server = http.createServer(async (req, res) => {
   res.setHeader("X-Content-Type-Options", "nosniff");
@@ -129,8 +132,11 @@ wss.on("connection", (ws) => {
           ws.close(1008, "Hello required");
           return;
         }
-        session = service.connect(data.token, send, () =>
-          ws.close(4001, "Session opened elsewhere"),
+        session = service.connect(
+          data.token,
+          send,
+          () => ws.close(4001, "Session opened elsewhere"),
+          data.profileToken,
         );
         clearTimeout(helloTimeout);
       } else service.handle(session.user, data);
