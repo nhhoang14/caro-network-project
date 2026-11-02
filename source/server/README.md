@@ -8,11 +8,10 @@ Khởi động MongoDB local ở `mongodb://localhost:27017`, hoặc đặt `MON
 
 ```powershell
 npm install
-npm run build
 npm start
 ```
 
-`npm start` chạy Maven/Spring Boot trên cổng 3000 và phục vụ bản React đã build. Để phát triển giao diện, dùng `npm run dev`: Vite ở cổng 5173 chuyển `/ws`, `/api` và `/health` sang Spring Boot ở cổng 3000. Có thể chạy riêng `npm run dev:server` và `npm run dev:client`.
+`npm start` tự build React, chạy Maven/Spring Boot trên cổng 3000 và phục vụ bản frontend vừa build. Để phát triển giao diện, dùng `npm run dev`: Vite ở cổng 5173 chuyển `/ws`, `/api` và `/health` sang Spring Boot ở cổng 3000. Có thể chạy riêng `npm run dev:server` và `npm run dev:client`.
 
 Biến môi trường:
 
@@ -30,7 +29,10 @@ Nếu đã có `source/server/data/history.json`, nhập hồ sơ và ván cũ b
 ## Cấu trúc
 
 - `CaroSocketHandler`: `/ws`, xác nhận `hello`, giới hạn tốc độ, heartbeat.
-- `RoomService`: phòng, phiên, lượt chơi, chat, đồng hồ, khán giả, ghép trận, chơi lại.
+- `RoomService`: điều phối phòng, phiên, lượt chơi, chat, đồng hồ, khán giả và chơi lại.
+- `MatchmakingQueue`: hàng chờ và chính sách chọn đối thủ.
+- `RoomViewFactory`: ánh xạ trạng thái RAM sang payload WebSocket ổn định.
+- `ConnectionPolicy`: chuẩn hóa URL public, địa chỉ LAN và kiểm tra Origin.
 - `GameRules`: kiểm tra 5 quân liên tiếp. Bot luyện tập vẫn ở client.
 - `MongoHistoryStore`: collection `profiles` và `matches`, lịch sử 30 ván và bảng xếp hạng 20 người.
 - `HttpApi`: `/health` và `/api/connection`.
@@ -40,4 +42,4 @@ Phòng, phiên chơi, hàng chờ và chat hiện hành giữ trong RAM; MongoDB
 
 API tài khoản: `GET /api/auth/me`, `POST /api/auth/register`, `POST /api/auth/login`, `POST /api/auth/logout`. Các lệnh POST cần `X-Caro-Request: 1`, Origin cùng trang và JSON cho đăng ký/đăng nhập. Khi đăng nhập, WebSocket dùng hồ sơ tài khoản theo cookie; đăng xuất thu hồi phiên và đóng WebSocket tương ứng. Triển khai công khai phải dùng HTTPS/WSS; HTTP trên LAN không mã hóa mật khẩu khi truyền.
 
-Lệnh kiểm thử: `mvn -f source/server/pom.xml test` khi chạy ở thư mục gốc. Kiểm thử này không cần MongoDB; để chạy ứng dụng thật cần MongoDB sẵn sàng. Backend Node.js trước đây còn trong thư mục này làm tài liệu tham chiếu, nhưng các lệnh npm hiện chạy Spring Boot.
+Lệnh kiểm thử toàn dự án: `npm test` trong `source/`. Chỉ kiểm thử Java: `mvn -f source/server/pom.xml test` khi chạy ở thư mục gốc. Kiểm thử không cần MongoDB; để chạy ứng dụng thật cần MongoDB sẵn sàng. Spring Boot là backend duy nhất của dự án.

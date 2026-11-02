@@ -1,6 +1,5 @@
 package com.caroclub;
 
-import java.net.URI;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -21,22 +20,15 @@ public class SocketConfig implements WebSocketConfigurer {
     private final String publicUrl;
     public SocketConfig(CaroSocketHandler handler, @Value("${caro.public-url:}") String publicUrl) {
         this.handler = handler;
-        this.publicUrl = publicUrl;
+        this.publicUrl = ConnectionPolicy.normalizePublicUrl(publicUrl);
     }
     @Override public void registerWebSocketHandlers(WebSocketHandlerRegistry registry) {
         registry.addHandler(handler, "/ws").addInterceptors(new HandshakeInterceptor() {
             @Override public boolean beforeHandshake(ServerHttpRequest request, ServerHttpResponse response,
                     org.springframework.web.socket.WebSocketHandler wsHandler, Map<String, Object> attributes) {
                 String origin = request.getHeaders().getFirst(HttpHeaders.ORIGIN);
-                if (origin == null) return true;
-                try {
-                    URI url = URI.create(origin);
-                    String scheme = url.getScheme();
-                    if (!("http".equals(scheme) || "https".equals(scheme)) || url.getRawUserInfo() != null
-                            || url.getPath() != null && !url.getPath().isEmpty()) return false;
-                    String host = request.getHeaders().getFirst(HttpHeaders.HOST);
-                    return url.getAuthority().equalsIgnoreCase(host) || origin.equals(publicUrl);
-                } catch (IllegalArgumentException e) { return false; }
+                String host = request.getHeaders().getFirst(HttpHeaders.HOST);
+                return ConnectionPolicy.allowedOrigin(origin, host, publicUrl);
             }
             @Override public void afterHandshake(ServerHttpRequest request, ServerHttpResponse response,
                     org.springframework.web.socket.WebSocketHandler wsHandler, Exception exception) {}

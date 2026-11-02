@@ -1,0 +1,160 @@
+/* QR invitation: generated locally; the link includes a reachable LAN/public host. */
+.qr-invite {
+  position: relative;
+  text-align: center;
+  margin: 15px 0 4px;
+}
+.qr-invite h3 {
+  font-size: 12px;
+  font-weight: 550;
+  color: #f8f5ff;
+  margin-bottom: 12px;
+}
+.invite-qr {
+  display: block;
+  width: 152px;
+  height: 152px;
+  max-width: 100%;
+  margin: 0 auto 12px;
+  border-radius: 10px;
+  background: white;
+  image-rendering: pixelated;
+}
+.qr-invite label {
+  display: block;
+  text-align: left;
+  font-size: 10px;
+  color: #e4dafa;
+  margin-bottom: 6px;
+}
+.qr-invite select {
+  width: 100%;
+  border: 1px solid #ffffff50;
+  border-radius: 7px;
+  padding: 7px 6px;
+  margin-bottom: 10px;
+  background: #6951c9;
+  color: white;
+  font: inherit;
+  font-size: 10px;
+}
+.qr-invite select option {
+  background: white;
+  color: #433557;
+}
+.invite-url {
+  display: block;
+  font-size: 10px;
+  color: #f5eaff;
+  line-height: 1.8;
+  overflow-wrap: anywhere;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  user-select: all;
+  margin: 10px 0;
+}
+.qr-help,
+.qr-placeholder {
+  font-size: 10px;
+  line-height: 1.9;
+  color: #e8defb;
+  margin-bottom: 12px;
+}
+.qr-placeholder {
+  padding: 15px 8px;
+  background: #ffffff0d;
+  border-radius: 8px;
+}
+.qr-network-note {
+  font-size: 9px;
+  line-height: 1.8;
+  color: #d6c9f6;
+  margin: 10px 0 0;
+}
+.invitation-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 18px 20px;
+  border: 1px solid #dcd2fb;
+  background: #f1ecff;
+  border-radius: 12px;
+  margin-bottom: 20px;
+}
+.invitation-banner strong {
+  display: block;
+  color: #7960b4;
+  font-size: 13px;
+  line-height: 1.6;
+}
+.invitation-banner p {
+  font-size: 10px;
+  color: #9b86b9;
+  line-height: 1.8;
+  margin-top: 5px;
+}
+.invitation-banner form {
+  display: flex;
+  gap: 8px;
+  min-width: 0;
+}
+.invitation-banner input {
+  border: 1px solid #dacef0;
+  background: white;
+  padding: 9px 11px;
+  font-size: 12px;
+  width: 160px;
+  color: #70568f;
+}
+@media (max-width: 820px) {
+  .invitation-banner {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .invitation-banner form {
+    width: 100%;
+  }
+  .invitation-banner input {
+    flex: 1;
+    width: 0;
+  }
+  .qr-invite h3 {
+    font-size: 13px;
+  }
+  .qr-help {
+    font-size: 11px;
+  }
+}
+@media (max-width: 560px) {
+  .invitation-banner {
+    padding: 16px;
+    margin-bottom: 15px;
+  }
+  .invitation-banner strong {
+    font-size: 13px;
+  }
+  .invitation-banner p {
+    font-size: 11px;
+  }
+  .invite-qr {
+    width: 176px;
+    height: 176px;
+  }
+  .invite-url {
+    font-size: 12px;
+  }
+  .qr-network-note {
+    font-size: 10px;
+  }
+}
+
+.mode-picker{margin-bottom:20px;background:white;border:1px solid #e6e8ef;border-radius:12px;padding:14px 16px}
+.mode-options{display:flex;gap:10px}
+.mode-option{display:flex;align-items:center;gap:10px;flex:1;text-align:left;padding:12px 14px;background:#f8f8fb;border:1px solid #ebe9f1;color:#9a90a8;border-radius:9px}
+.mode-option.selected{color:#7154cf;border-color:#cfc0f7;background:#f3eeff;box-shadow:0 0 0 1px #e9e0fc inset}
+.mode-option:hover{border-color:#bca8ee;background:#f5f0ff}
+.mode-option>span{font-size:12px;font-weight:600}
+.mode-option small{display:block;font-size:10px;line-height:1.6;font-weight:400;margin-top:4px;color:#a99ab9}
+.mode-picker>p{font-size:11px;color:#a196ae;line-height:1.8;margin-top:10px}
+@media(max-width:560px){.mode-picker{padding:11px;margin-bottom:15px}.mode-options{gap:7px}.mode-option{padding:11px 8px;gap:7px}.mode-option>span{font-size:11px}.mode-option small{font-size:8px}.mode-picker>p{font-size:10px}}

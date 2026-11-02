@@ -1,5 +1,7 @@
 package com.caroclub;
 
+import static com.caroclub.RoomViewFactory.map;
+
 import com.fasterxml.jackson.databind.JsonNode;
 import java.security.SecureRandom;
 import java.util.ArrayList;
@@ -12,6 +14,8 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 import java.util.function.Consumer;
+import java.util.function.LongSupplier;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
@@ -19,13 +23,19 @@ import org.springframework.stereotype.Service;
 public class RoomService {
     public static final long TURN_MS = 30_000, RECONNECT_MS = 30_000;
     private final HistoryStore history;
+    private final LongSupplier clock;
     private final SecureRandom random = new SecureRandom();
     private final Map<String, User> sessions = new LinkedHashMap<>();
     private final Map<String, Room> rooms = new LinkedHashMap<>();
-    private final Set<User> queue = new LinkedHashSet<>();
+    private final MatchmakingQueue queue = new MatchmakingQueue();
 
-    public RoomService(HistoryStore history) { this.history = history; }
-    private long now() { return System.currentTimeMillis(); }
+    @Autowired
+    public RoomService(HistoryStore history) { this(history, System::currentTimeMillis); }
+    RoomService(HistoryStore history, LongSupplier clock) {
+        this.history = history;
+        this.clock = clock;
+    }
+    private long now() { return clock.getAsLong(); }
 
     public record Connected(User user, String connectionId) {}
     public static final class User {
@@ -37,7 +47,7 @@ public class RoomService {
         boolean online;
         long lastSeen, lastChat = -1;
     }
-    private static final class Room {
+    static final class Room {
         String id, round = UUID.randomUUID().toString(), turn = "X", status = "waiting", winner, reason;
         List<User> players = new ArrayList<>();
         Set<User> spectators = new LinkedHashSet<>();
@@ -50,11 +60,6 @@ public class RoomService {
         List<Map<String, Object>> finalPlayers;
     }
 
-    private static Map<String, Object> obj(Object... pairs) {
-        Map<String, Object> result = new LinkedHashMap<>();
-        for (int i = 0; i < pairs.length; i += 2) result.put((String) pairs[i], pairs[i + 1]);
-        return result;
-    }
     private String randomToken() {
         byte[] bytes = new byte[24]; random.nextBytes(bytes);
         return java.util.HexFormat.of().formatHex(bytes);
@@ -85,7 +90,7 @@ public class RoomService {
         }
         user.accountProfileId = accountProfileId;
         if (oldClose != null) oldClose.run();
-        send.accept(obj("type", "welcome", "id", user.id, "token", user.token, "serverTime", now(),
+        send.accept(map("type", "welcome", "id", user.id, "token", user.token, "serverTime", now(),
                 "profileToken", user.profile.token(), "profileId", user.profile.profile().id));
         Room room = rooms.get(user.roomId);
         if (room != null) {
@@ -103,37 +108,26 @@ public class RoomService {
     public synchronized int roomCount() { return rooms.size(); }
 
     private void send(User user, Object payload) { if (user.online && user.send != null) user.send.accept(payload); }
-    private void error(User user, String message) { send(user, obj("type", "error", "message", message)); }
+    private void error(User user, String message) { send(user, map("type", "error", "message", message)); }
     private void stats(User user) {
-        send(user, obj("type", "stats", "history", history.personal(user.profile.profile().id), "leaderboard", history.leaderboard()));
+        send(user, map("type", "stats", "history", history.personal(user.profile.profile().id), "leaderboard", history.leaderboard()));
     }
     private void allStats() {
         List<Map<String, Object>> leaderboard = history.leaderboard();
         for (User user : sessions.values()) if (user.online)
-            send(user, obj("type", "stats", "history", history.personal(user.profile.profile().id), "leaderboard", leaderboard));
+            send(user, map("type", "stats", "history", history.personal(user.profile.profile().id), "leaderboard", leaderboard));
     }
 
-    private Map<String, Object> snapshot(Room room) {
-        List<Map<String, Object>> players = room.finalPlayers != null ? room.finalPlayers : room.players.stream()
-                .map(p -> obj("id", p.id, "name", p.name, "online", p.online)).toList();
-        return obj("id", room.id, "round", room.round, "board", room.board, "status", room.status,
-                "turn", room.turn, "players", players, "moves", room.moves, "winner", room.winner,
-                "line", room.line, "reason", room.reason,
-                "deadline", room.remaining != null ? null : room.deadline, "remaining", room.remaining,
-                "messages", room.messages, "rematch", new ArrayList<>(room.rematch),
-                "spectators", room.spectators.size(), "serverTime", now());
-    }
     private void broadcast(Room room) {
-        Map<String, Object> payload = obj("type", "room", "room", snapshot(room));
+        Map<String, Object> payload = map("type", "room", "room", RoomViewFactory.snapshot(room, now()));
         for (User player : room.players) send(player, payload);
         for (User spectator : room.spectators) send(spectator, payload);
     }
     private void lobby() {
         List<Map<String, Object>> list = rooms.values().stream().filter(r -> !r.players.isEmpty())
-                .map(r -> obj("id", r.id, "host", r.players.getFirst().name, "count", r.players.size(),
-                        "status", r.status, "spectators", r.spectators.size())).toList();
+                .map(RoomViewFactory::lobbyRoom).toList();
         long online = sessions.values().stream().filter(p -> p.online).count();
-        Map<String, Object> payload = obj("type", "lobby", "rooms", list, "online", online, "matching", queue.size());
+        Map<String, Object> payload = map("type", "lobby", "rooms", list, "online", online, "matching", queue.size());
         for (User user : sessions.values()) send(user, payload);
     }
     private void reset(Room room) {
@@ -151,7 +145,7 @@ public class RoomService {
         room.rematch.clear();
     }
     private void finish(Room room, String winner, String reason, List<Integer> line) {
-        room.finalPlayers = room.players.stream().map(p -> obj("id", p.id, "name", p.name, "online", p.online)).toList();
+        room.finalPlayers = room.players.stream().map(p -> map("id", p.id, "name", p.name, "online", p.online)).toList();
         room.status = "finished";
         room.winner = winner;
         room.reason = reason;
@@ -190,12 +184,12 @@ public class RoomService {
         if (room.players.stream().anyMatch(p -> !p.online)) { room.remaining = TURN_MS; room.deadline = null; }
     }
     private void leave(User user) {
-        if (queue.remove(user)) send(user, obj("type", "matchmaking", "waiting", false));
+        if (queue.remove(user)) send(user, map("type", "matchmaking", "waiting", false));
         Room room = rooms.get(user.roomId);
         user.roomId = null;
         String role = user.role;
         user.role = null;
-        send(user, obj("type", "left"));
+        send(user, map("type", "left"));
         if (room == null) { lobby(); return; }
         if ("spectator".equals(role)) {
             room.spectators.remove(user);
@@ -212,7 +206,7 @@ public class RoomService {
         if (room.players.isEmpty()) {
             for (User spectator : room.spectators) {
                 spectator.roomId = null; spectator.role = null;
-                send(spectator, obj("type", "left"));
+                send(spectator, map("type", "left"));
             }
             room.spectators.clear();
             rooms.remove(room.id);
@@ -239,7 +233,7 @@ public class RoomService {
         String type = string(data, "type");
         if (type.equals("stats")) { stats(user); return; }
         if (type.equals("cancelMatch")) {
-            queue.remove(user); send(user, obj("type", "matchmaking", "waiting", false)); lobby(); return;
+            queue.remove(user); send(user, map("type", "matchmaking", "waiting", false)); lobby(); return;
         }
         if (type.equals("match")) {
             if (user.roomId != null) { error(user, "Hãy rời phòng hiện tại trước."); return; }
@@ -247,17 +241,16 @@ public class RoomService {
             if (name.isEmpty()) { error(user, "Bạn hãy nhập tên trước khi tìm trận."); return; }
             user.name = name; history.rename(user.profile, name);
             if (queue.contains(user)) return;
-            User opponent = queue.stream().filter(p -> p.online && !p.id.equals(user.id) && p.roomId == null
-                    && !p.profile.profile().id.equals(user.profile.profile().id)).findFirst().orElse(null);
+            User opponent = queue.findOpponent(user);
             if (opponent != null) {
                 Room room = createRoom(opponent);
                 if (room == null) { error(user, "Đã đạt giới hạn 100 phòng."); return; }
                 queue.remove(opponent);
-                send(opponent, obj("type", "matchmaking", "waiting", false));
-                send(user, obj("type", "matchmaking", "waiting", false));
+                send(opponent, map("type", "matchmaking", "waiting", false));
+                send(user, map("type", "matchmaking", "waiting", false));
                 joinRoom(user, room); broadcast(room); lobby();
             } else {
-                queue.add(user); send(user, obj("type", "matchmaking", "waiting", true)); lobby();
+                queue.add(user); send(user, map("type", "matchmaking", "waiting", true)); lobby();
             }
             return;
         }
@@ -316,7 +309,7 @@ public class RoomService {
             if (content.isEmpty()) return;
             if (user.lastChat >= 0 && now() - user.lastChat < 500) { error(user, "Bạn đang gửi tin nhắn quá nhanh."); return; }
             user.lastChat = now();
-            room.messages.add(obj("id", UUID.randomUUID().toString(), "userId", user.id, "name", user.name,
+            room.messages.add(map("id", UUID.randomUUID().toString(), "userId", user.id, "name", user.name,
                     "text", content, "at", now()));
             if (room.messages.size() > 60) room.messages.removeFirst();
             broadcast(room);

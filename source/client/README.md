@@ -13,10 +13,16 @@ Mở http://localhost:5173. Vite chuyển HTTP API và WebSocket sang Spring Boo
 
 Build và kiểm tra TypeScript: `npm run build`. Sản phẩm ở `client/dist/`, được Spring Boot phục vụ khi chạy `npm start`.
 
-- src/App.tsx: giao diện, trạng thái, WebSocket reconnect, đấu máy.
+- src/App.tsx: điều phối trang, modal và các luồng thao tác cấp màn hình.
+- src/components/GameCard.tsx: khu vực người chơi, đồng hồ, bàn cờ và hành động ván đấu.
+- src/components/GamePrimitives.tsx: icon và quân X/O dùng lại.
+- src/hooks/useCaroSocket.ts: kết nối WebSocket, reconnect và trạng thái server.
+- src/services/authApi.ts: HTTP API đăng nhập/đăng xuất.
+- src/game/practice.ts: tạo và cập nhật ván đấu máy cục bộ.
+- src/types.ts: model và union type cho giao thức client/server.
 - src/ReplayPanel.tsx: tua từng nước và phát lại tự động từ lịch sử nước đi.
 - src/InvitePanel.tsx: tạo QR trong trình duyệt, chọn địa chỉ LAN/public, sao chép link mời.
-- src/styles.css: bố cục responsive, bàn cờ, modal, chat.
+- src/styles.css: entrypoint giữ thứ tự cascade; CSS chi tiết chia trong `src/styles/` theo core, responsive, feature và theme.
 - src/ios.css: lớp thiết kế lấy cảm hứng từ iPhone với glass effect, nút xanh, thanh tab dưới và bottom sheet trên màn hình nhỏ.
 - @fontsource-variable/inter: font giao diện tự host, gồm glyph tiếng Việt; không cần tải từ CDN khi chạy.
 - ../shared/game.mjs: luật và bot dùng chung.
