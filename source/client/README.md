@@ -1,6 +1,6 @@
 # Client — Caro Club
 
-React + TypeScript, Vite. Bàn cờ 15×15, bot, phòng online, ghép trận, khán giả, chat, phát lại và lịch sử.
+React + TypeScript, Vite. Bàn cờ 15×15, bot, phòng online, ghép trận, khán giả, chat, phát lại và lịch sử. Server online sử dụng Spring Boot + MongoDB.
 
 Chạy các lệnh tại **source/**, nơi đặt package.json dùng chung:
 
@@ -9,9 +9,9 @@ npm install
 npm run dev
 ```
 
-Mở http://localhost:3000. HTTP và WebSocket cùng host/cổng. Dev server dùng Vite middleware và HMR.
+Mở http://localhost:5173. Vite chuyển HTTP API và WebSocket sang Spring Boot ở cổng 3000. Cần chạy MongoDB trước.
 
-Build và kiểm tra TypeScript: `npm run build`. Sản phẩm ở `client/dist/`, được server phục vụ khi chạy `npm start`.
+Build và kiểm tra TypeScript: `npm run build`. Sản phẩm ở `client/dist/`, được Spring Boot phục vụ khi chạy `npm start`.
 
 - src/App.tsx: giao diện, trạng thái, WebSocket reconnect, đấu máy.
 - src/ReplayPanel.tsx: tua từng nước và phát lại tự động từ lịch sử nước đi.
@@ -21,4 +21,4 @@ Build và kiểm tra TypeScript: `npm run build`. Sản phẩm ở `client/dist/
 - @fontsource-variable/inter: font giao diện tự host, gồm glyph tiếng Việt; không cần tải từ CDN khi chạy.
 - ../shared/game.mjs: luật và bot dùng chung.
 
-Tên, âm thanh và lịch sử đấu máy lưu trong localStorage; token phiên và mã hồ sơ lưu trong sessionStorage để các tab độc lập có thành tích riêng. Lịch sử online/bảng xếp hạng đến từ server và tồn tại sau khi server khởi động lại. Để xem lại thành tích cá nhân sau restart, giữ tab cũ; đóng tab hoặc xóa sessionStorage có thể làm mất mã truy cập hồ sơ. Mở tab độc lập hoặc trình duyệt khác để có người thứ hai. Xem README gốc để chạy LAN và tìm hiểu giao thức.
+Tên, âm thanh và lịch sử đấu máy lưu trong localStorage; token phiên chơi và mã hồ sơ khách lưu trong sessionStorage. Người chơi có thể tạo tài khoản/đăng nhập từ nút ở thanh trên cùng; phiên đăng nhập dùng cookie HttpOnly, còn lịch sử online và bảng xếp hạng lưu trong MongoDB. Thành tích khách không tự chuyển sang tài khoản mới. Mở tab độc lập hoặc trình duyệt khác để có người thứ hai. Xem README gốc để chạy LAN và tìm hiểu giao thức.

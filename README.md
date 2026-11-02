@@ -12,7 +12,7 @@ Giao diện responsive lấy cảm hứng từ iOS, có thanh tab ở cạnh dư
 
 ## Chạy nhanh
 
-Yêu cầu **Node.js 22 trở lên**, npm và trình duyệt hiện đại. Không cần Java hoặc cơ sở dữ liệu cho bản demo.
+Yêu cầu **Node.js 22+**, **Java 21**, **Maven 3.9+** và **MongoDB**. Nếu có Docker, khởi động MongoDB local bằng `docker compose up -d mongo`; nếu không, cài MongoDB hoặc đặt `MONGODB_URI` trỏ đến MongoDB của nhóm.
 
 ```powershell
 cd source
@@ -23,7 +23,11 @@ npm start
 
 Mở **http://localhost:3000**. Dừng server bằng `Ctrl+C`.
 
-Khi phát triển, chạy `npm run dev` từ `source/` để tự cập nhật giao diện, không cần build mỗi lần. Chạy `npm test` để kiểm tra luật cờ, quản lý phòng và HTTP/WebSocket với hai client thật.
+Khi phát triển, chạy `npm run dev` từ `source/`: Spring Boot ở cổng 3000 và Vite ở **http://localhost:5173**. `npm test` chạy kiểm thử Java cho luật cờ, quản lý phòng, ghép trận, khán giả và kết nối lại. MongoDB phải chạy trước khi khởi động server; kiểm thử Java không cần MongoDB.
+
+Mặc định server dùng `mongodb://localhost:27017/caro_network`. Để dùng MongoDB khác, đặt biến môi trường `MONGODB_URI` trước khi chạy. Không commit URI có mật khẩu. Nếu có lịch sử cũ trong `source/server/data/history.json`, đặt `LEGACY_HISTORY_FILE` thành đường dẫn tuyệt đối đến file đó để nhập vào MongoDB khi server khởi động.
+
+Trên máy cá nhân, cũng có thể tạo `source/server/atlas.properties` với dòng `spring.data.mongodb.uri=<URI MongoDB>`. Spring Boot tự đọc file này và `.gitignore` bỏ qua nó; kiểm tra bằng `git check-ignore -v source/server/atlas.properties`. Không chép URI thật vào `src/main/resources/application.properties`.
 
 Nếu cổng 3000 đang được dùng:
 
@@ -43,7 +47,11 @@ npm start
 7. Bấm **Xem lại ván** để tua từng nước hoặc phát tự động. Mở **Phòng chơi** ở tab thứ ba để vào bằng nút **Xem** mà không chiếm ghế chơi.
 8. Hai tab khác có thể bấm **Tìm đối thủ ngay** để được ghép tự động. Sau một trận online, mở **Lịch sử đấu** và **Bảng xếp hạng** để xem thành tích lưu trên server.
 
-Đấu qua LAN: máy chủ chạy server; hai máy cùng mạng mở `http://<IPv4-may-chu>:3000`. Xem IPv4 bằng `ipconfig`. QR và link mời tự chọn IPv4 LAN kể cả khi máy chủ mở trang bằng localhost. Nếu Windows hỏi tường lửa, chủ máy cần cho phép Node.js trên mạng riêng đang dùng.
+### Tài khoản người chơi
+
+Bấm **Đăng nhập** trên thanh trên cùng, chọn **Tạo tài khoản** và nhập tên tài khoản/mật khẩu. Sau khi đăng nhập, ván online lưu theo hồ sơ tài khoản trong MongoDB; đăng nhập lại trên thiết bị khác sẽ xem được lịch sử đó. Nút tài khoản cũng có thao tác **Đăng xuất**. Người chơi vẫn có thể vào phòng với tư cách khách; lịch sử khách trước khi đăng ký không tự chuyển sang tài khoản mới. Dự án chưa có đặt lại mật khẩu.
+
+Đấu qua LAN: máy chủ chạy server; hai máy cùng mạng mở `http://<IPv4-may-chu>:3000`. Xem IPv4 bằng `ipconfig`. QR và link mời tự chọn IPv4 LAN kể cả khi máy chủ mở trang bằng localhost. Nếu Windows hỏi tường lửa, chủ máy cần cho phép Java trên mạng riêng đang dùng.
 
 ## Chức năng đã có
 
@@ -59,7 +67,7 @@ npm start
 - Phát lại từng nước cờ của ván hiện tại, lịch sử online hoặc ván đấu máy mới hoàn tất.
 - Khán giả xem trực tiếp phòng đang chơi; không được đánh cờ, chat, đầu hàng hoặc yêu cầu chơi lại.
 - Ghép trận tự động với hàng chờ và nút hủy.
-- Lịch sử online và bảng xếp hạng lưu bền vững tại `source/server/data/history.json` (tối đa 5.000 trận); hồ sơ dùng mã ngẫu nhiên lưu trên trình duyệt, không cần tài khoản.
+- Đăng ký, đăng nhập và đăng xuất bằng tên tài khoản/mật khẩu. Tài khoản, phiên đăng nhập, lịch sử online và bảng xếp hạng lưu trong MongoDB (tối đa 5.000 trận); khách vẫn có thể chơi không cần tài khoản.
 
 **Luật demo:** từ 5 quân liên tiếp theo ngang/dọc/chéo là thắng, kể cả bị chặn cả hai đầu. Bàn kín không có người thắng thì hòa. Đấu máy không giới hạn giờ; online hết giờ, đầu hàng hoặc rời phòng trong khi chơi sẽ thua.
 
@@ -67,22 +75,21 @@ npm start
 
 ```text
 React + TypeScript (Browser A) ──┐
-                               ├── HTTP + WebSocket ── Node.js server
-React + TypeScript (Browser B) ──┘                       ├── RoomService
-                                                       ├── Game rules
+                               ├── HTTP + WebSocket ── Spring Boot server
+React + TypeScript (Browser B) ──┘                       ├── RoomService / GameRules
                                                        ├── RAM: rooms / sessions / chat
-                                                       └── JSON: online history / profiles
+                                                       └── MongoDB: accounts / auth_sessions / profiles / matches
 ```
 
-| Thành phần | Công nghệ demo | Vai trò |
+| Thành phần | Công nghệ | Vai trò |
 | --- | --- | --- |
 | Client | React 19, TypeScript, Vite 6, Inter Variable | Giao diện, WebSocket client, bot; font đóng gói local |
-| Server | Node.js 22+, thư viện ws | HTTP, WebSocket, quản lý phòng, đồng hồ |
-| Luật cờ | JavaScript module dùng chung | Kiểm tra thắng và chiến thuật máy |
-| Dữ liệu | RAM + JSON + browser storage | Phòng/chat trên RAM; lịch sử online và hồ sơ trên file JSON; lịch sử đấu máy trên trình duyệt; phiên theo tab |
-| Kiểm thử | node:test | Luật cờ, quản lý phòng, hai client WebSocket thật |
+| Server | Java 21, Spring Boot 3.5 | HTTP, WebSocket, quản lý phòng, đồng hồ |
+| Luật cờ | Java trên server; JavaScript ở client | Server kiểm tra thắng; client có bot luyện tập |
+| Dữ liệu | RAM + MongoDB + browser storage | Phòng/chat trên RAM; tài khoản, phiên đăng nhập, hồ sơ và lịch sử online trong MongoDB; lịch sử đấu máy trên trình duyệt |
+| Kiểm thử | JUnit 5 | Luật cờ, quản lý phòng và giao thức sự kiện |
 
-**Khác định hướng ban đầu:** thiết kế ban đầu dự kiến Java/Spring Boot và PostgreSQL. Demo này dùng Node.js để chạy bằng một bộ công cụ; chưa có Spring Boot/PostgreSQL. Có thể chuyển RoomService và giao thức sang backend Java ở giai đoạn tiếp theo.
+Theo quyết định hiện tại của nhóm, backend dùng Spring Boot và dữ liệu bền vững dùng MongoDB. Mã Node.js cũ còn ở `source/server/*.mjs` làm tài liệu tham chiếu; lệnh chạy chính đã chuyển sang Java.
 
 ## HTTP và giao thức WebSocket
 
@@ -91,9 +98,13 @@ React + TypeScript (Browser B) ──┘                       ├── RoomSer
 | GET / | HTTP | Phục vụ giao diện React đã build |
 | GET /health | HTTP/JSON | Trả status, số phòng và transport WebSocket |
 | GET /api/connection | HTTP/JSON | Các địa chỉ LAN và URL public đã cấu hình để tạo QR |
+| GET /api/auth/me | HTTP/JSON | Trả tài khoản đang đăng nhập hoặc `null` |
+| POST /api/auth/register | HTTP/JSON | Tạo tài khoản và đăng nhập |
+| POST /api/auth/login | HTTP/JSON | Đăng nhập |
+| POST /api/auth/logout | HTTP | Đăng xuất, thu hồi phiên |
 | /ws | WebSocket | Kết nối hai chiều, gói tin JSON |
 
-Client mở `/ws`, gửi `hello` trước hành động khác. Token do server sinh ngẫu nhiên, lưu `sessionStorage` để mỗi tab độc lập có người chơi riêng.
+Client mở `/ws`, gửi `hello` trước hành động khác. Token phiên chơi do server sinh ngẫu nhiên, lưu `sessionStorage` để mỗi tab độc lập. Khi đã đăng nhập, cookie `caro_auth` dạng HttpOnly xác định hồ sơ tài khoản; server bỏ qua mã hồ sơ khách trong gói `hello`.
 
 | Client → server | Dữ liệu mẫu |
 | --- | --- |
@@ -109,7 +120,7 @@ Client mở `/ws`, gửi `hello` trước hành động khác. Token do server s
 | Rời phòng | `{ "type": "leave" }` |
 | Làm mới thống kê | `{ "type": "stats" }` |
 
-Chỉ số ô 0–224, bằng `row * 15 + column` (hàng/cột từ 0). `hello` có thể gửi thêm `profileToken` đã lưu trong `sessionStorage`. Server gửi `welcome` (id, token phiên, profileId, profileToken, giờ server), `lobby` (các phòng gồm trạng thái/số khán giả, số phiên online, số người chờ ghép), `matchmaking`, `stats` (30 trận online gần nhất của hồ sơ và 20 vị trí bảng xếp hạng), `room` (snapshot bàn cờ, người chơi, khán giả, lượt, deadline, chat, kết quả), `left`, `error`. Mỗi nước hợp lệ tạo một snapshot gửi người chơi và khán giả. Chat cũng gửi snapshot đầy đủ để giữ giao thức đơn giản cho demo.
+Chỉ số ô 0–224, bằng `row * 15 + column` (hàng/cột từ 0). Khách có thể gửi `profileToken` trong `hello`; người đăng nhập dùng cookie. Server gửi `welcome` (id, token phiên, profileId, profileToken nếu là khách, giờ server), `lobby` (các phòng gồm trạng thái/số khán giả, số phiên online, số người chờ ghép), `matchmaking`, `stats` (30 trận online gần nhất của hồ sơ và 20 vị trí bảng xếp hạng), `room` (snapshot bàn cờ, người chơi, khán giả, lượt, deadline, chat, kết quả), `left`, `error`. Mỗi nước hợp lệ tạo một snapshot gửi người chơi và khán giả. Chat cũng gửi snapshot đầy đủ để giữ giao thức đơn giản cho demo.
 
 ## Cấu trúc
 
@@ -136,18 +147,15 @@ caro-network-project/
     │       ├── styles.css
     │       └── ios.css          # Lớp giao diện iOS, tab bar và bottom sheet
     ├── server/
-    │   ├── README.md
-    │   ├── index.mjs            # HTTP, WebSocket, heartbeat, phục vụ giao diện
-    │   ├── connection.mjs       # Chọn địa chỉ LAN, PUBLIC_URL, kiểm tra Origin
-    │   ├── rooms.mjs            # Phòng, phiên, nước đi, chat, đồng hồ
-    │   ├── history.mjs          # Lưu lịch sử online, hồ sơ, bảng xếp hạng
-    │   ├── data/                # Tự tạo khi chạy, không commit
-    │   └── test/
-    │       ├── game.test.mjs
-    │       ├── connection.test.mjs
-    │       ├── rooms.test.mjs
-    │       ├── features.test.mjs
-    │       └── network.test.mjs
+    │   ├── pom.xml              # Maven và Spring Boot
+    │   ├── src/main/java/com/caroclub/
+    │   │   ├── CaroSocketHandler.java
+    │   │   ├── RoomService.java
+    │   │   ├── MongoHistoryStore.java
+    │   │   └── ...
+    │   ├── src/test/java/com/caroclub/
+    │   ├── *.mjs                # Backend Node.js cũ, chỉ làm tham chiếu
+    │   └── data/                # File JSON cũ; có thể nhập vào MongoDB
     └── shared/
         ├── game.mjs            # Luật cờ, bot
         └── game.d.mts          # Kiểu cho TypeScript
@@ -155,12 +163,12 @@ caro-network-project/
 
 ## Giới hạn demo
 
-- Phòng, phiên và chat lưu RAM, mất khi khởi động lại server. Tối đa 100 phòng và 1.000 phiên; lịch sử online và hồ sơ lưu file JSON, tối đa 5.000 trận gần nhất.
-- Không có đăng nhập hoặc PostgreSQL. Bảng xếp hạng theo hồ sơ của từng tab; đóng tab hoặc xóa sessionStorage có thể làm mất mã truy cập hồ sơ, dù file lịch sử vẫn còn. Đây chưa phải cơ chế chống gian lận danh tính.
+- Phòng, phiên và chat lưu RAM, mất khi khởi động lại server. Tối đa 100 phòng và 1.000 phiên; lịch sử online và hồ sơ lưu MongoDB, tối đa 5.000 trận gần nhất.
+- Tài khoản dùng tên người dùng 3–24 ký tự và mật khẩu ít nhất 8 ký tự; mật khẩu được băm BCrypt. Phiên đăng nhập lưu MongoDB và cấp cookie HttpOnly, SameSite=Lax, hết hạn sau 30 ngày. Người chơi khách vẫn nhận diện bằng mã của từng tab; xóa `sessionStorage` có thể làm mất quyền xem lịch sử khách. Thành tích khách trước khi đăng ký không tự chuyển vào tài khoản.
 - Lịch sử đấu máy lưu trên trình duyệt, có thể mất khi xóa dữ liệu. Luyện tập không được server xác nhận. Các mục lịch sử cũ trước bản nâng cấp không có chuỗi nước đi để phát lại.
 - Một phiên chỉ có một kết nối. Tab nhân bản có thể dùng chung token; mở tab độc lập/trình duyệt khác để demo hai người.
-- Server giới hạn payload 8 KB, tốc độ gói tin/chat và kiểm tra Origin cùng host cho trình duyệt. Local/LAN dùng HTTP; triển khai Internet cần HTTPS/WSS, xác thực và lưu trữ bền vững.
-- Font Inter Variable được đóng gói cùng bản build và có font hệ thống dự phòng. Sau cài thư viện và build, game chạy local không cần dịch vụ bên ngoài.
+- Server giới hạn payload 8 KB, tốc độ gói tin/chat và kiểm tra Origin cùng host cho trình duyệt. Đăng nhập qua Internet cần HTTPS/WSS; HTTP trên LAN không mã hóa mật khẩu khi truyền. Endpoint tài khoản yêu cầu JSON, header `X-Caro-Request: 1` và Origin hợp lệ.
+- Font Inter Variable được đóng gói cùng bản build và có font hệ thống dự phòng. Backend cần kết nối MongoDB khi khởi động.
 
 ## Quét QR bằng điện thoại
 
@@ -169,7 +177,7 @@ caro-network-project/
 3. Điện thoại mở Camera/Zalo quét QR. Trang mở với lời mời ở đầu trang: nhập tên rồi bấm **Vào phòng**.
 4. Chơi như bình thường; HTTP và WebSocket đều đi qua cùng cổng. Nếu có nhiều card mạng, chọn đúng địa chỉ trong danh sách cạnh QR.
 
-Nếu điện thoại không mở được link, kiểm tra cùng Wi-Fi, mạng khách có cô lập thiết bị hay không, và quyền Node.js trong Windows Firewall. Máy chủ phải tiếp tục chạy. Khi IP Wi-Fi thay đổi, tải lại trang/tạo lại QR. Trên HTTP LAN, trình duyệt có thể không cho sao chép tự động; có thể nhấn giữ link để sao chép.
+Nếu điện thoại không mở được link, kiểm tra cùng Wi-Fi, mạng khách có cô lập thiết bị hay không, và quyền Java trong Windows Firewall. Máy chủ phải tiếp tục chạy. Khi IP Wi-Fi thay đổi, tải lại trang/tạo lại QR. Trên HTTP LAN, trình duyệt có thể không cho sao chép tự động; có thể nhấn giữ link để sao chép.
 
 ### Chơi qua 4G/5G hoặc Wi-Fi khác
 
