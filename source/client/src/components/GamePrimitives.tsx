@@ -25,6 +25,9 @@ const paths: Record<string, ReactNode> = {
   bot: <><rect x="4" y="6" width="16" height="14" rx="4" /><path d="M12 2v4M1 11v5m22-5v5M8 16h8" /><circle cx="8" cy="11" r=".7" /><circle cx="16" cy="11" r=".7" /></>,
   eye: <><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6-10-6-10-6Z" /><circle cx="12" cy="12" r="2.5" /></>,
   shuffle: <><path d="M3 7h4c5 0 5 10 10 10h4m-4-4 4 4-4 4M3 17h4c2 0 3-2 4-4m3-2c1-2 2-4 3-4h4m-4-4 4 4-4 4" /></>,
+  users: <><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M22 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" /></>,
+  handshake: <path d="M11 17l2 2a1 1 0 0 0 1.4 0l4.3-4.3a1 1 0 0 0 0-1.4l-2.6-2.6a1 1 0 0 0-1.4 0L12 13 M18 11l3-3a1 1 0 0 0 0-1.4l-2.6-2.6a1 1 0 0 0-1.4 0l-5 5 M2 13l4.3 4.3a1 1 0 0 0 1.4 0l3-3" />,
+  edit: <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />,
 };
 
 export function Icon({ name, size = 20 }: { name: string; size?: number }) {

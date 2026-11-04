@@ -10,5 +10,6 @@ public interface HistoryStore {
     void record(MatchRecord match);
     List<MatchRecord> personal(String profileId);
     List<Map<String, Object>> leaderboard();
+    default Map<String, Double> allScores() { return Map.of(); }
     record ProfileSession(Profile profile, String token) {}
 }

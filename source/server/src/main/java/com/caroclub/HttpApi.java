@@ -16,7 +16,7 @@ public class HttpApi {
     private final RoomService service;
     private final int port;
     private final String publicUrl;
-    public HttpApi(RoomService service, @Value("${server.port:3000}") int port,
+    public HttpApi(RoomService service, @Value("${server.port:8000}") int port,
             @Value("${caro.public-url:}") String publicUrl) {
         this.service = service;
         this.port = port;

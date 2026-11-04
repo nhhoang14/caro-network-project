@@ -132,7 +132,7 @@ class RoomServiceTest {
         assertEquals(300, latest(o, "room").path("room").path("messages").get(1).path("text").asText().length());
     }
 
-    @Test void timeoutFinishesTheGameForTheOtherPlayer() throws Exception {
+    @Test void timeoutWithNoMovesRulesAsDraw() throws Exception {
         Client x = connect(null), o = connect(null);
         send(x, "{\"type\":\"create\",\"name\":\"An\"}");
         String room = latest(x, "room").path("room").path("id").asText();
@@ -142,7 +142,21 @@ class RoomServiceTest {
         JsonNode finished = latest(o, "room").path("room");
         assertEquals("finished", finished.path("status").asText());
         assertEquals("timeout", finished.path("reason").asText());
-        assertEquals(o.user.id, finished.path("winner").asText());
+        assertTrue(finished.path("winner").isNull() || finished.path("winner").asText().isEmpty());
+    }
+
+    @Test void timeoutFinishesTheGameForTheOtherPlayerWhenMovesExist() throws Exception {
+        Client x = connect(null), o = connect(null);
+        send(x, "{\"type\":\"create\",\"name\":\"An\"}");
+        String room = latest(x, "room").path("room").path("id").asText();
+        send(o, "{\"type\":\"join\",\"name\":\"Binh\",\"roomId\":\"" + room + "\"}");
+        send(x, "{\"type\":\"move\",\"index\":112}");
+        clock.addAndGet(RoomService.TURN_MS + 1);
+        service.tick();
+        JsonNode finished = latest(o, "room").path("room");
+        assertEquals("finished", finished.path("status").asText());
+        assertEquals("timeout", finished.path("reason").asText());
+        assertEquals(x.user.id, finished.path("winner").asText());
     }
 
     @Test void rematchInvitationRequiresOpponentAcceptanceAndSwapsSides() throws Exception {
@@ -185,5 +199,23 @@ class RoomServiceTest {
         assertFalse(latest(x, "matchmaking").path("waiting").asBoolean());
         send(o, "{\"type\":\"match\",\"name\":\"Binh\"}");
         assertTrue(latest(o, "matchmaking").path("waiting").asBoolean());
+    }
+
+    @Test void directInviteAssignsChallengedPlayerAsXAndChallengerAsO() throws Exception {
+        Client challenger = connect(null), challenged = connect(null);
+        send(challenger, "{\"type\":\"rename\",\"name\":\"Challenger\"}");
+        send(challenged, "{\"type\":\"rename\",\"name\":\"Challenged\"}");
+
+        send(challenger, "{\"type\":\"invite\",\"targetUserId\":\"" + challenged.user.id + "\"}");
+        JsonNode inv = latest(challenged, "invitation");
+        String invId = inv.path("id").asText();
+        assertEquals("Challenger", inv.path("name").asText());
+
+        send(challenged, "{\"type\":\"inviteResponse\",\"invitationId\":\"" + invId + "\",\"accept\":true}");
+
+        JsonNode room = latest(challenged, "room").path("room");
+        assertEquals("playing", room.path("status").asText());
+        assertEquals("Challenged", room.path("players").get(0).path("name").asText());
+        assertEquals("Challenger", room.path("players").get(1).path("name").asText());
     }
 }

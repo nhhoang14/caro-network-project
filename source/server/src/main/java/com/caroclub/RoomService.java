@@ -13,6 +13,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
 import java.util.function.LongSupplier;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -21,13 +22,14 @@ import org.springframework.stereotype.Service;
 
 @Service
 public class RoomService {
-    public static final long TURN_MS = 30_000, RECONNECT_MS = 30_000;
+    public static final long TURN_MS = 15_000, RECONNECT_MS = 30_000;
     private final HistoryStore history;
     private final LongSupplier clock;
     private final SecureRandom random = new SecureRandom();
     private final Map<String, User> sessions = new LinkedHashMap<>();
     private final Map<String, Room> rooms = new LinkedHashMap<>();
     private final MatchmakingQueue queue = new MatchmakingQueue();
+    private final Map<String, Invitation> invitations = new ConcurrentHashMap<>();
 
     @Autowired
     public RoomService(HistoryStore history) { this(history, System::currentTimeMillis); }
@@ -57,7 +59,14 @@ public class RoomService {
         Long deadline, remaining;
         List<Map<String, Object>> messages = new ArrayList<>();
         Set<String> rematch = new LinkedHashSet<>();
+        String drawOfferedBy;
         List<Map<String, Object>> finalPlayers;
+    }
+    static final class Invitation {
+        String id = UUID.randomUUID().toString();
+        User from;
+        User to;
+        long expiresAt;
     }
 
     private String randomToken() {
@@ -90,7 +99,7 @@ public class RoomService {
         }
         user.accountProfileId = accountProfileId;
         if (oldClose != null) oldClose.run();
-        send.accept(map("type", "welcome", "id", user.id, "token", user.token, "serverTime", now(),
+        send.accept(map("type", "welcome", "id", user.id, "name", user.name, "token", user.token, "serverTime", now(),
                 "profileToken", user.profile.token(), "profileId", user.profile.profile().id));
         Room room = rooms.get(user.roomId);
         if (room != null) {
@@ -117,7 +126,6 @@ public class RoomService {
         for (User user : sessions.values()) if (user.online)
             send(user, map("type", "stats", "history", history.personal(user.profile.profile().id), "leaderboard", leaderboard));
     }
-
     private void broadcast(Room room) {
         Map<String, Object> payload = map("type", "room", "room", RoomViewFactory.snapshot(room, now()));
         for (User player : room.players) send(player, payload);
@@ -127,7 +135,25 @@ public class RoomService {
         List<Map<String, Object>> list = rooms.values().stream().filter(r -> !r.players.isEmpty())
                 .map(RoomViewFactory::lobbyRoom).toList();
         long online = sessions.values().stream().filter(p -> p.online).count();
-        Map<String, Object> payload = map("type", "lobby", "rooms", list, "online", online, "matching", queue.size());
+        Map<String, Double> allScores = history.allScores();
+        List<Map<String, Object>> onlineUsers = sessions.values().stream()
+                .filter(u -> u.online)
+                .map(u -> {
+                    String status = "idle";
+                    if (u.roomId != null) {
+                        Room r = rooms.get(u.roomId);
+                        if (r != null && "playing".equals(r.status)) status = "playing";
+                        else if (r != null) status = "waiting";
+                    } else if (queue.contains(u)) {
+                        status = "matching";
+                    }
+                    String pid = u.profile != null ? u.profile.profile().id : null;
+                    double score = (pid != null && allScores.containsKey(pid)) ? allScores.get(pid) : 0.0;
+                    return map("id", u.id, "name", u.name, "status", status,
+                            "profileId", pid, "score", score);
+                }).toList();
+        Map<String, Object> payload = map("type", "lobby", "rooms", list, "online", online,
+                "matching", queue.size(), "users", onlineUsers);
         for (User user : sessions.values()) send(user, payload);
     }
     private void reset(Room room) {
@@ -143,6 +169,7 @@ public class RoomService {
         room.deadline = now() + TURN_MS;
         room.remaining = null;
         room.rematch.clear();
+        room.drawOfferedBy = null;
     }
     private void finish(Room room, String winner, String reason, List<Integer> line) {
         room.finalPlayers = room.players.stream().map(p -> map("id", p.id, "name", p.name, "online", p.online)).toList();
@@ -152,6 +179,7 @@ public class RoomService {
         room.line = line;
         room.deadline = null;
         room.remaining = null;
+        room.drawOfferedBy = null;
         if (room.players.size() == 2) {
             String winnerProfile = room.players.stream().filter(p -> p.id.equals(winner)).findFirst()
                     .map(p -> p.profile.profile().id).orElse(null);
@@ -213,6 +241,9 @@ public class RoomService {
         } else {
             room.rematch.clear();
             broadcast(room);
+            for (User remainingPlayer : room.players) {
+                send(remainingPlayer, map("type", "notice", "message", user.name + " đã dừng chơi và rời khỏi phòng."));
+            }
         }
         lobby();
     }
@@ -232,12 +263,72 @@ public class RoomService {
         user.lastSeen = now();
         String type = string(data, "type");
         if (type.equals("stats")) { stats(user); return; }
+        if (type.equals("rename")) {
+            String newName = name(data);
+            if (newName.isEmpty()) { error(user, "Tên không hợp lệ."); return; }
+            user.name = newName;
+            history.rename(user.profile, newName);
+            if (user.roomId != null) {
+                Room r = rooms.get(user.roomId);
+                if (r != null) broadcast(r);
+            }
+            send(user, map("type", "renamed", "name", newName));
+            lobby();
+            allStats();
+            return;
+        }
+        if (type.equals("invite")) {
+            String targetId = string(data, "targetUserId");
+            User target = sessions.values().stream().filter(u -> u.online && u.id.equals(targetId)).findFirst().orElse(null);
+            if (target == null) { error(user, "Không tìm thấy người chơi này."); return; }
+            if (target.id.equals(user.id)) { error(user, "Không thể tự mời bản thân."); return; }
+            if (target.roomId != null || queue.contains(target)) { error(user, "Người chơi này đang bận."); return; }
+            if (user.roomId != null || queue.contains(user)) { error(user, "Bạn đang trong phòng hoặc đang tìm trận."); return; }
+            String invName = name(data);
+            if (!invName.isEmpty()) { user.name = invName; history.rename(user.profile, invName); }
+
+            Invitation inv = new Invitation();
+            inv.from = user;
+            inv.to = target;
+            inv.expiresAt = now() + 60_000;
+            invitations.put(inv.id, inv);
+
+            send(target, map("type", "invitation", "id", inv.id, "fromId", user.id, "fromName", user.name, "name", user.name, "expiresAt", inv.expiresAt));
+            send(user, map("type", "notice", "message", "Đã gửi lời mời đến " + target.name + "."));
+            return;
+        }
+        if (type.equals("inviteResponse")) {
+            String invId = string(data, "invitationId");
+            boolean accept = data.path("accept").asBoolean(false);
+            Invitation inv = invitations.remove(invId);
+            if (inv == null || now() > inv.expiresAt) {
+                error(user, "Lời mời đã hết hạn hoặc không tồn tại."); return;
+            }
+            if (!inv.to.id.equals(user.id)) {
+                error(user, "Bạn không phải là người nhận lời mời này."); return;
+            }
+            if (!accept) {
+                send(inv.from, map("type", "notice", "message", user.name + " đã từ chối lời mời thách đấu."));
+                return;
+            }
+            if (!inv.from.online) { error(user, "Người mời đã ngoại tuyến."); return; }
+            if (inv.from.roomId != null || user.roomId != null) { error(user, "Một trong hai người đang bận."); return; }
+
+            // Người thách đấu nhận O (đi sau), người bị thách đấu nhận X (đi trước)
+            Room room = createRoom(user);
+            if (room == null) { error(user, "Đã đạt giới hạn 100 phòng."); return; }
+            joinRoom(inv.from, room);
+            broadcast(room);
+            lobby();
+            return;
+        }
         if (type.equals("cancelMatch")) {
             queue.remove(user); send(user, map("type", "matchmaking", "waiting", false)); lobby(); return;
         }
         if (type.equals("match")) {
             if (user.roomId != null) { error(user, "Hãy rời phòng hiện tại trước."); return; }
             String name = name(data);
+            if (name.isEmpty()) name = user.name;
             if (name.isEmpty()) { error(user, "Bạn hãy nhập tên trước khi tìm trận."); return; }
             user.name = name; history.rename(user.profile, name);
             if (queue.contains(user)) return;
@@ -264,6 +355,7 @@ public class RoomService {
         if (type.equals("create") || type.equals("join")) {
             if (user.roomId != null || queue.contains(user)) { error(user, "Hãy rời phòng hoặc hủy tìm trận trước."); return; }
             String name = name(data);
+            if (name.isEmpty()) name = user.name;
             if (name.isEmpty()) { error(user, "Bạn hãy nhập tên trước khi vào phòng."); return; }
             user.name = name; history.rename(user.profile, name);
             Room room;
@@ -296,6 +388,7 @@ public class RoomService {
             JsonNode indexNode = data.path("index");
             int index = indexNode.isIntegralNumber() ? indexNode.asInt(-1) : -1;
             if (index < 0 || index >= 225 || room.board.get(index) != null) { error(user, "Ô cờ không hợp lệ."); return; }
+            room.drawOfferedBy = null;
             room.board.set(index, symbol);
             room.moves.add(new MatchRecord.Move(index, symbol));
             List<Integer> line = GameRules.winningLine(room.board, index, symbol);
@@ -312,6 +405,35 @@ public class RoomService {
             room.messages.add(map("id", UUID.randomUUID().toString(), "userId", user.id, "name", user.name,
                     "text", content, "at", now()));
             if (room.messages.size() > 60) room.messages.removeFirst();
+            broadcast(room);
+        } else if (type.equals("drawOffer")) {
+            if (!"playing".equals(room.status)) return;
+            if (room.players.size() < 2) return;
+            if (room.drawOfferedBy != null && room.drawOfferedBy.equals(user.id)) {
+                error(user, "Bạn đã gửi đề nghị hòa rồi."); return;
+            }
+            room.drawOfferedBy = user.id;
+            broadcast(room);
+            String other = room.players.stream().filter(p -> !p.id.equals(user.id)).findFirst().map(p -> p.id).orElse(null);
+            if (other != null) {
+                room.players.stream().filter(p -> p.id.equals(other)).findFirst()
+                        .ifPresent(p -> send(p, map("type", "notice", "message", user.name + " đã gửi lời mời cầu hòa.")));
+            }
+        } else if (type.equals("drawResponse")) {
+            if (!"playing".equals(room.status)) return;
+            boolean accept = data.path("accept").asBoolean(false);
+            if (room.drawOfferedBy == null || room.drawOfferedBy.equals(user.id)) return;
+            if (accept) {
+                room.drawOfferedBy = null;
+                finish(room, null, "agreement", List.of());
+            } else {
+                String requester = room.drawOfferedBy;
+                room.drawOfferedBy = null;
+                broadcast(room);
+                room.players.stream().filter(p -> p.id.equals(requester)).findFirst()
+                        .ifPresent(p -> send(p, map("type", "notice", "message", user.name + " đã từ chối đề nghị hòa.")));
+                return;
+            }
             broadcast(room);
         } else if (type.equals("resign")) {
             if (!"playing".equals(room.status)) return;
@@ -342,6 +464,7 @@ public class RoomService {
         if (!connectionId.equals(user.connectionId)) return;
         user.online = false; user.lastSeen = now();
         queue.remove(user);
+        invitations.values().removeIf(inv -> inv.from.id.equals(user.id) || inv.to.id.equals(user.id));
         Room room = rooms.get(user.roomId);
         if (room != null) {
             if ("player".equals(user.role) && "playing".equals(room.status) && room.remaining == null) {
@@ -354,14 +477,19 @@ public class RoomService {
 
     @Scheduled(fixedDelay = 250)
     public synchronized void tick() {
+        invitations.values().removeIf(inv -> now() > inv.expiresAt);
         for (User user : new ArrayList<>(sessions.values())) {
             if (!user.online && now() - user.lastSeen >= RECONNECT_MS && user.roomId != null) leave(user);
             if (!user.online && user.roomId == null && now() - user.lastSeen > 600_000) sessions.remove(user.token);
         }
         for (Room room : new ArrayList<>(rooms.values())) {
             if ("playing".equals(room.status) && room.remaining == null && room.deadline != null && now() >= room.deadline) {
-                int loser = room.turn.equals("X") ? 0 : 1;
-                finish(room, room.players.get(1 - loser).id, "timeout", List.of());
+                if (room.moves.isEmpty()) {
+                    finish(room, null, "timeout", List.of());
+                } else {
+                    int loser = room.turn.equals("X") ? 0 : 1;
+                    finish(room, room.players.get(1 - loser).id, "timeout", List.of());
+                }
                 broadcast(room);
             }
         }
