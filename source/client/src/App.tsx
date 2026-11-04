@@ -532,19 +532,14 @@ export default function App() {
           className="sidebar-bottom"
           style={{ cursor: "pointer" }}
           onClick={() => {
-            if (!account) {
-              setAuthError("");
-              setDialog("auth");
-            } else {
-              setRenameInput(name);
-              setDialog("rename");
-            }
+            setAuthError("");
+            setDialog("auth");
           }}
-          title={account ? "Bấm để đổi tên hiển thị" : "Bấm để đăng nhập"}
+          title={account ? "Hồ sơ cá nhân & Đổi tên, Đăng xuất" : "Đăng nhập tài khoản"}
         >
           <div className="avatar">{account ? account.name.charAt(0).toUpperCase() : "K"}</div>
           <div>
-            <strong>{account ? account.name : "Khách"} {account && <Icon name="edit" size={12} />}</strong>
+            <strong>{account ? account.name : "Khách"}</strong>
             <span>{account ? `@${account.username}` : "Đang chơi với tư cách Khách"}</span>
           </div>
           <span className="green-dot" />
@@ -552,28 +547,6 @@ export default function App() {
       </aside>
 
       <div className="workspace">
-        <header className="topbar">
-          <div className="breadcrumb">
-            <span>Không gian chơi</span> <Icon name="chevron" size={14} />
-            <strong>Bàn cờ Caro</strong>
-          </div>
-          <div
-            className={`connection ${connection === "online" ? "" : "disconnected"}`}
-          >
-            <span className="green-dot" />
-            <span className="connection-label">{connection === "online"
-              ? "Server đang kết nối"
-              : connection === "replaced"
-                ? "Phiên đã mở ở nơi khác"
-                : connection === "offline"
-                  ? "Đang kết nối lại…"
-                  : "Đang kết nối…"}</span>
-          </div>
-          <button className="account-button" onClick={() => { setAuthError(""); setDialog("auth"); }}>
-            <span className="account-button-avatar">{account ? account.name.charAt(0).toUpperCase() : <Icon name="shield" size={16} />}</span>
-            <span>{account ? account.username : "Đăng nhập"}</span>
-          </button>
-        </header>
         <main>
           <section className="page-heading">
             <div>
@@ -966,7 +939,7 @@ export default function App() {
             <div className="modal-heading">
               <h2 id="modal-title">
                 {dialog === "auth"
-                  ? account ? "Tài khoản của bạn" : "Lưu thành tích của bạn"
+                  ? account ? "Hồ sơ cá nhân" : "Đăng nhập tài khoản"
                   : dialog === "rooms"
                   ? "Tìm bạn cùng chơi"
                   : dialog === "history"
@@ -992,15 +965,62 @@ export default function App() {
               </button>
             </div>
             {dialog === "auth" && (account ? (
-              <div className="auth-profile">
-                <div className="auth-profile-avatar">{account.name.charAt(0).toUpperCase()}</div>
-                <strong>{account.name}</strong>
-                <span>@{account.username}</span>
-                <p>Lịch sử và bảng xếp hạng online của tài khoản được lưu trong MongoDB. Bạn có thể đăng nhập lại trên thiết bị khác.</p>
-                <button type="button" className="button secondary full" style={{ marginBottom: 8 }} onClick={() => { setRenameInput(name); setDialog("rename"); }}><Icon name="edit" size={14} /> Đổi tên hiển thị</button>
-                {authError && <p className="auth-error" role="alert">{authError}</p>}
-                <button className="button secondary full" onClick={logout} disabled={authBusy || (isOnline && room.status === "playing")}>Đăng xuất</button>
-                {isOnline && room.status === "playing" && <small>Hãy kết thúc hoặc rời ván hiện tại để đăng xuất.</small>}
+              <div className="auth-profile" style={{ textAlign: "center", padding: "10px 0" }}>
+                <div
+                  className="auth-profile-avatar"
+                  style={{
+                    width: 64,
+                    height: 64,
+                    fontSize: 26,
+                    borderRadius: "50%",
+                    margin: "0 auto 12px",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    background: "linear-gradient(135deg, #0284c7, #0369a1)",
+                    color: "white",
+                    fontWeight: 700,
+                  }}
+                >
+                  {account.name.charAt(0).toUpperCase()}
+                </div>
+                <strong style={{ fontSize: 18, display: "block", color: "#1e293b" }}>{account.name}</strong>
+                <span style={{ color: "#64748b", fontSize: 13, display: "block", marginTop: 2 }}>@{account.username}</span>
+
+                <div style={{ display: "flex", gap: 12, margin: "16px 0", justifyContent: "center" }}>
+                  <div style={{ background: "#f0fdf4", border: "1px solid #bbf7d0", padding: "8px 16px", borderRadius: 12, flex: 1, maxWidth: 140 }}>
+                    <small style={{ color: "#16a34a", fontWeight: 600, display: "block", fontSize: 11 }}>Điểm online</small>
+                    <strong style={{ fontSize: 17, color: "#15803d" }}>
+                      {Number(myScore ? (typeof myScore.score === "number" ? myScore.score : (myScore.wins * 1.0 + myScore.draws * 0.5)) : 0).toFixed(1)} đ
+                    </strong>
+                  </div>
+                  <div style={{ background: "#f8fafc", border: "1px solid #e2e8f0", padding: "8px 16px", borderRadius: 12, flex: 1, maxWidth: 140 }}>
+                    <small style={{ color: "#64748b", fontWeight: 600, display: "block", fontSize: 11 }}>Thành tích</small>
+                    <strong style={{ fontSize: 15, color: "#1e293b" }}>
+                      {myScore?.wins ?? 0}T · {myScore?.played ?? 0} ván
+                    </strong>
+                  </div>
+                </div>
+
+                <div style={{ display: "flex", flexDirection: "column", gap: 8, width: "100%", marginTop: 10 }}>
+                  <button
+                    type="button"
+                    className="button primary full"
+                    onClick={() => { setRenameInput(name); setDialog("rename"); }}
+                  >
+                    <Icon name="edit" size={15} /> Đổi tên hiển thị
+                  </button>
+                  {authError && <p className="auth-error" role="alert">{authError}</p>}
+                  <button
+                    className="button secondary full"
+                    style={{ borderColor: "#fca5a5", color: "#dc2626" }}
+                    onClick={logout}
+                    disabled={authBusy || (isOnline && room.status === "playing")}
+                  >
+                    <Icon name="exit" size={15} /> Đăng xuất
+                  </button>
+                </div>
+                {isOnline && room.status === "playing" && <small style={{ color: "#ef4444", marginTop: 8, display: "block" }}>Hãy kết thúc hoặc rời ván hiện tại để đăng xuất.</small>}
               </div>
             ) : (
               <>
