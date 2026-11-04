@@ -23,6 +23,11 @@ export default function App() {
   const [name, setName] = useState(() => loadStored("caro-name", ""));
   const [local, setLocal] = useState<Room>(() => createPracticeRoom(name));
   const [account, setAccount] = useState<Account | null>(null);
+  const [accountChecked, setAccountChecked] = useState(false);
+  const [guestNameReady, setGuestNameReady] = useState(false);
+  const [playMode, setPlayMode] = useState<"practice" | "online">(() =>
+    new URLSearchParams(location.search).has("room") ? "online" : "practice",
+  );
   const [authMode, setAuthMode] = useState<"login" | "register">("login");
   const [authUsername, setAuthUsername] = useState("");
   const [authPassword, setAuthPassword] = useState("");
@@ -89,6 +94,7 @@ export default function App() {
   const localGames = history.filter((h) => h.mode !== "Online");
   const wins = localGames.filter((h) => h.result === "Thắng").length;
   const myScore = leaderboard.find((score) => score.id === profileId);
+  const playerReady = Boolean(account) || guestNameReady;
 
   function notify(message: string) {
     setToast(message);
@@ -100,9 +106,13 @@ export default function App() {
         if (active && current) {
           setAccount(current);
           setName(current.name);
+          setLocal(createPracticeRoom(current.name));
         }
       })
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => {
+        if (active) setAccountChecked(true);
+      });
     return () => { active = false; };
   }, []);
   async function submitAuth(event: FormEvent) {
@@ -114,6 +124,9 @@ export default function App() {
       const next = await authenticate(authMode, authUsername, authPassword);
       setAccount(next);
       setName(next.name);
+      setGuestNameReady(true);
+      recorded.current.clear();
+      setLocal(createPracticeRoom(next.name));
       resetServerData();
       setAuthPassword("");
       setDialog(null);
@@ -124,16 +137,25 @@ export default function App() {
     } finally { setAuthBusy(false); }
   }
   async function logout() {
-    if (isOnline) { setAuthError("Hãy rời phòng trước khi đăng xuất."); return; }
+    if (isOnline && room.status === "playing") {
+      setAuthError("Hãy kết thúc hoặc rời ván đang chơi trước khi đăng xuất.");
+      return;
+    }
     setAuthBusy(true);
     setAuthError("");
     try {
+      if (isOnline) send({ type: "leave" });
       await endSession();
       setAccount(null);
+      setName("");
+      setGuestNameReady(false);
+      recorded.current.clear();
+      setLocal(createPracticeRoom(""));
+      setPlayMode("practice");
       resetServerData(true);
       setDialog(null);
       reconnect();
-      notify("Đã đăng xuất. Bạn vẫn có thể chơi với tư cách khách.");
+      notify("Đã đăng xuất và đặt lại bàn cờ. Hãy đặt tên để tiếp tục chơi.");
     } catch (error) {
       setAuthError(error instanceof Error ? error.message : "Không thể kết nối server.");
     } finally { setAuthBusy(false); }
@@ -175,6 +197,9 @@ export default function App() {
   useEffect(() => {
     saveStored("caro-sound", sound);
   }, [sound]);
+  useEffect(() => {
+    if (onlineRoom) setPlayMode("online");
+  }, [onlineRoom]);
   useEffect(() => {
     const container = chatEnd.current?.parentElement;
     container?.scrollTo({ top: container.scrollHeight, behavior: "smooth" });
@@ -271,8 +296,10 @@ export default function App() {
     const command = roomId == null
       ? { type: "create" as const, name: name.trim() }
       : { type: "join" as const, name: name.trim(), roomId };
-    if (send(command))
+    if (send(command)) {
+      setPlayMode("online");
       setDialog(null);
+    }
   }
   function newPractice() {
     recorded.current.clear();
@@ -281,17 +308,45 @@ export default function App() {
   function startPractice() {
     if (isOnline && !send({ type: "leave" })) return;
     newPractice();
+    setPlayMode("practice");
     setDialog(null);
   }
   function choosePractice() {
     if (isOnline && room.status === "playing" && !isSpectator) setDialog("practice");
     else if (isOnline) startPractice();
-    else setDialog(null);
+    else {
+      setPlayMode("practice");
+      setDialog(null);
+    }
+  }
+  function chooseOnline() {
+    setPlayMode("online");
+    setDialog(null);
+  }
+  function openRooms() {
+    setPlayMode("online");
+    setDialog(playerReady ? "rooms" : null);
+  }
+  function confirmGuestName(event: FormEvent) {
+    event.preventDefault();
+    const nextName = name.trim();
+    if (!nextName) {
+      notify("Hãy nhập tên để bắt đầu chơi.");
+      document.getElementById("online-guest-name")?.focus();
+      return;
+    }
+    setName(nextName);
+    setGuestNameReady(true);
+    recorded.current.clear();
+    setLocal(createPracticeRoom(nextName));
   }
   function findMatch() {
     if (!name.trim()) { notify("Nhập tên để tìm đối thủ."); document.getElementById("player-name")?.focus(); return; }
     if (isOnline) { notify("Hãy rời phòng hiện tại trước."); return; }
-    if (send({ type: matching ? "cancelMatch" : "match", name: name.trim() })) setDialog(null);
+    if (send({ type: matching ? "cancelMatch" : "match", name: name.trim() })) {
+      setPlayMode("online");
+      setDialog(null);
+    }
   }
   function openReplay(replay: Replay) {
     setReplaySource(replay);
@@ -375,7 +430,7 @@ export default function App() {
           </button>
           <button
             className={`nav-item ${dialog === "rooms" ? "active" : ""}`}
-            onClick={() => setDialog("rooms")}
+            onClick={openRooms}
           >
             <Icon name="rooms" />
             <span className="nav-text">Phòng chơi</span><span className="count-badge">{rooms.length}</span>
@@ -398,20 +453,6 @@ export default function App() {
             <span className="nav-text">Cách chơi</span>
           </button>
         </nav>
-        <div className="sidebar-tip">
-          <span className="tip-symbol">✳</span>
-          <h3>
-            Chậm một nhịp.
-            <br />
-            Hay một nước.
-          </h3>
-          <p>
-            Mỗi ván cờ là một cơ hội
-            <br />
-            để nhìn xa hơn.
-          </p>
-          <span className="tip-dots">○ &nbsp; × &nbsp; ○</span>
-        </div>
         <div className="sidebar-bottom">
           <div className="avatar">{(account?.name || name || "B").charAt(0).toUpperCase()}</div>
           <div>
@@ -444,7 +485,6 @@ export default function App() {
             <span className="account-button-avatar">{account ? account.name.charAt(0).toUpperCase() : <Icon name="shield" size={16} />}</span>
             <span>{account ? account.username : "Đăng nhập"}</span>
           </button>
-          <span className="demo-label">DEMO · NHÓM 09</span>
         </header>
         <main>
           <section className="page-heading">
@@ -457,31 +497,36 @@ export default function App() {
               </h1>
               <p>Một không gian chiến thuật để chơi, xem và kết nối cùng bạn bè.</p>
             </div>
-            <button
-              className="button secondary room-browse"
-              onClick={() => setDialog("rooms")}
-            >
-              <Icon name="rooms" size={18} />
-              Khám phá phòng
-              <Icon name="arrow" size={17} />
-            </button>
+            {playMode === "online" && playerReady && (
+              <button
+                className="button secondary room-browse"
+                onClick={() => setDialog("rooms")}
+              >
+                <Icon name="rooms" size={18} />
+                Khám phá phòng
+                <Icon name="arrow" size={17} />
+              </button>
+            )}
           </section>
 
         <section className="mode-picker" aria-label="Chọn chế độ chơi">
           <div className="mode-options">
-            <button type="button" className={`mode-option ${!isOnline ? "selected" : ""}`} aria-pressed={!isOnline} onClick={choosePractice}>
+            <button type="button" className={`mode-option ${playMode === "practice" ? "selected" : ""}`} aria-pressed={playMode === "practice"} onClick={choosePractice}>
               <Icon name="bot" size={20} /><span>Đấu với máy<small>Luyện tập cùng Caro Bot</small></span>
             </button>
-            <button type="button" className={`mode-option ${isOnline ? "selected" : ""}`} aria-pressed={isOnline} onClick={() => {
-              if (isOnline) setDialog(null);
-              else { setDialog(null); document.getElementById("player-name")?.focus(); }
-            }}>
+            <button type="button" className={`mode-option ${playMode === "online" ? "selected" : ""}`} aria-pressed={playMode === "online"} onClick={chooseOnline}>
               <Icon name="link" size={20} /><span>Đấu online<small>Tạo phòng, mời bạn bằng QR</small></span>
             </button>
           </div>
-          <p>{isSpectator ? `Bạn đang xem trực tiếp phòng #${room.id} cùng ${room.spectators || 0} khán giả.` : isOnline ? "Bạn đang ở phòng online. Chọn Đấu với máy để chuyển sang luyện tập." : "Bạn cầm X và đi trước. Bấm vào ô trống để đánh, Caro Bot sẽ tự đáp lại."}</p>
+          <p>{playMode === "practice"
+            ? "Bạn cầm X và đi trước. Bấm vào ô trống để đánh, Caro Bot sẽ tự đáp lại."
+            : isSpectator
+              ? `Bạn đang xem trực tiếp phòng #${room.id} cùng ${room.spectators || 0} khán giả.`
+              : isOnline
+                ? "Bạn đang ở phòng online. Chọn Đấu với máy để chuyển sang luyện tập."
+                : "Tạo phòng riêng, ghép trận hoặc nhập mã phòng để chơi cùng bạn bè."}</p>
         </section>
-        {!isOnline && invitedRoom && (
+        {playMode === "online" && playerReady && !isOnline && invitedRoom && (
             <section
               className="invitation-banner"
               aria-label="Lời mời vào phòng"
@@ -513,8 +558,41 @@ export default function App() {
               </form>
             </section>
           )}
-          <div className="game-layout">
-            <GameCard
+          <div className={`game-layout ${playMode === "practice" ? "practice-layout" : !isOnline ? "online-setup-layout" : "online-layout"}`}>
+            {!accountChecked ? (
+              <section className="online-gate-card" aria-live="polite">
+                <span className="online-gate-icon"><Icon name={playMode === "practice" ? "bot" : "link"} size={28} /></span>
+                <h2>Đang chuẩn bị bàn chơi…</h2>
+                <p>Chỉ một chút nữa thôi.</p>
+              </section>
+            ) : !playerReady ? (
+              <section className="online-gate-card">
+                <span className="online-gate-kicker">BƯỚC ĐẦU TIÊN</span>
+                <span className="online-gate-icon"><Icon name={playMode === "practice" ? "bot" : "link"} size={28} /></span>
+                <h2>Đặt tên trước khi bắt đầu</h2>
+                <p>Tên này sẽ hiển thị trên bàn cờ và với đối thủ khi bạn chơi online. Bạn không cần tạo tài khoản.</p>
+                <form className="online-name-form" onSubmit={confirmGuestName}>
+                  <label htmlFor="online-guest-name">Tên của bạn</label>
+                  <div>
+                    <input
+                      id="online-guest-name"
+                      value={name}
+                      onChange={(event) => setName(event.target.value)}
+                      maxLength={24}
+                      placeholder="Bạn muốn được gọi là gì?"
+                      autoComplete="nickname"
+                      autoFocus
+                    />
+                    <button className="button primary" type="submit" disabled={!name.trim()}>
+                      {playMode === "practice" ? "Bắt đầu đấu với máy" : "Vào sảnh online"} <Icon name="arrow" size={17} />
+                    </button>
+                  </div>
+                </form>
+                <button className="online-login-link" type="button" onClick={() => { setAuthError(""); setDialog("auth"); }}>
+                  Đã có tài khoản? Đăng nhập
+                </button>
+              </section>
+            ) : playMode === "practice" || isOnline ? <GameCard
               room={room}
               isOnline={isOnline}
               isSpectator={isSpectator}
@@ -531,13 +609,77 @@ export default function App() {
               onMove={move}
               onBoardKeyDown={boardKeyboard}
               onPlayAgain={() => isOnline ? send({ type: "rematch" }) : newPractice()}
+              onDeclineRematch={() => send({ type: "rematchDecline" })}
               onReplay={() => openReplay({ id: room.round, players: room.players, moves: room.moves, reason: room.reason })}
               onUndo={undo}
               onToggleSound={() => setSound(!sound)}
               onResign={() => setDialog("resign")}
-            />
+            /> : (
+              <section className="online-entry-grid" aria-label="Chọn cách đấu online">
+                <article className="online-setup-card room-setup-card">
+                  <span className="setup-card-icon"><Icon name="rooms" size={25} /></span>
+                  <span className="online-gate-kicker">PHÒNG CHƠI RIÊNG</span>
+                  <h2>Tạo hoặc tìm phòng</h2>
+                  <p>Tạo phòng để mời bạn bè, xem danh sách phòng đang mở hoặc tham gia nhanh bằng mã.</p>
+                  <button
+                    className="button primary full setup-primary-action"
+                    disabled={connection !== "online" || matching}
+                    onClick={() => enterRoom()}
+                  >
+                    <Icon name="plus" size={18} />
+                    Tạo phòng mới
+                    <Icon name="arrow" size={17} />
+                  </button>
+                  <button className="button secondary full" type="button" onClick={() => setDialog("rooms")}>
+                    <Icon name="rooms" size={17} />
+                    Xem phòng đang mở{rooms.length ? ` · ${rooms.length}` : ""}
+                  </button>
+                  <div className="setup-divider"><span />hoặc nhập mã phòng<span /></div>
+                  <form
+                    className="setup-join-form"
+                    onSubmit={(event) => {
+                      event.preventDefault();
+                      enterRoom(code);
+                    }}
+                  >
+                    <input
+                      aria-label="Mã phòng"
+                      placeholder="Ví dụ: A1B2C3"
+                      value={code}
+                      onChange={(event) => setCode(event.target.value.toUpperCase().replace(/[^A-F0-9]/g, "").slice(0, 6))}
+                      maxLength={6}
+                    />
+                    <button type="submit" className="button primary" disabled={connection !== "online" || matching || code.length !== 6}>
+                      Vào phòng <Icon name="arrow" size={17} />
+                    </button>
+                  </form>
+                </article>
 
-            <aside className="right-column">
+                <article className="online-setup-card matchmaking-setup-card">
+                  <span className="setup-card-icon"><Icon name="shuffle" size={25} /></span>
+                  <span className="online-gate-kicker">GHÉP ĐẤU NHANH</span>
+                  <h2>{matching ? "Đang tìm đối thủ…" : "Tìm đối thủ phù hợp"}</h2>
+                  <p>{matching
+                    ? "Bạn đang ở trong hàng chờ. Có thể hủy bất cứ lúc nào nếu muốn chọn cách chơi khác."
+                    : "Vào hàng chờ và để server tự động kết nối bạn với một người chơi khác đang sẵn sàng."}</p>
+                  <div className="matchmaking-stats">
+                    <span><strong>{onlineCount}</strong> đang kết nối</span>
+                    <span><strong>{matchingCount}</strong> đang chờ ghép</span>
+                  </div>
+                  <button
+                    className={`button full setup-match-button ${matching ? "secondary" : "primary"}`}
+                    disabled={connection !== "online"}
+                    onClick={findMatch}
+                  >
+                    <Icon name="shuffle" size={18} />
+                    {matching ? "Hủy tìm đối thủ" : "Bắt đầu ghép đấu"}
+                  </button>
+                  <small>Hệ thống ghép tự động · Không cần mã phòng</small>
+                </article>
+              </section>
+            )}
+
+            {playMode === "online" && playerReady && isOnline && <aside className="right-column">
               <section className="connect-card">
                 <div className="connect-decoration">
                   ×<span>○</span>
@@ -562,74 +704,15 @@ export default function App() {
                   disabled={isOnline}
                   autoComplete="nickname"
                 />
-                {isOnline ? (
-                  <>
-                    {!isSpectator && <InvitePanel roomId={room.id} notify={notify} />}
-                    {isSpectator && <div className="spectator-card"><Icon name="eye" size={23} /><strong>Chế độ khán giả</strong><span>Bạn đang theo dõi ván cờ trực tiếp. Nước đi và chat chỉ dành cho hai người chơi.</span></div>}
-                    <button
-                      className="leave-button"
-                      onClick={() => setDialog("leave")}
-                    >
-                      <Icon name="exit" size={15} />
-                      Rời phòng
-                    </button>
-                  </>
-                ) : (
-                  <>
-                    <div className="matchmaking-box">
-                      <span className="matchmaking-kicker"><Icon name="shuffle" size={16} /> GHÉP TRẬN TỰ ĐỘNG</span>
-                      <strong>{matching ? "Đang tìm đối thủ…" : "Sẵn sàng thử sức?"}</strong>
-                      <p>{matching ? `${matchingCount} người đang trong hàng chờ` : "Server sẽ ghép bạn với người chơi khác đang chờ."}</p>
-                      <button className={`button full ${matching ? "secondary" : "primary"}`} disabled={connection !== "online"} onClick={findMatch}>
-                        {matching ? "Hủy tìm trận" : "Tìm đối thủ ngay"}
-                      </button>
-                    </div>
-                    <button
-                      className="button white full create-button"
-                      disabled={connection !== "online" || matching}
-                      onClick={() => enterRoom()}
-                    >
-                      <Icon name="plus" size={18} />
-                      Tạo phòng mới
-                      <Icon name="arrow" size={17} />
-                    </button>
-                    <div className="or-divider">
-                      <span />
-                      hoặc tham gia phòng
-                      <span />
-                    </div>
-                    <form
-                      className="join-form"
-                      onSubmit={(e) => {
-                        e.preventDefault();
-                        enterRoom(code);
-                      }}
-                    >
-                      <input
-                        aria-label="Mã phòng"
-                        placeholder="Nhập mã phòng"
-                        value={code}
-                        onChange={(e) =>
-                          setCode(
-                            e.target.value
-                              .toUpperCase()
-                              .replace(/[^A-F0-9]/g, "")
-                              .slice(0, 6),
-                          )
-                        }
-                        maxLength={6}
-                      />
-                      <button
-                        type="submit"
-                        title="Vào phòng"
-                        aria-label="Vào phòng"
-                        disabled={connection !== "online" || matching || code.length !== 6}
-                      >
-                        <Icon name="arrow" size={20} />
-                      </button>
-                    </form>
-                  </>
-                )}
+                {!isSpectator && <InvitePanel roomId={room.id} notify={notify} />}
+                {isSpectator && <div className="spectator-card"><Icon name="eye" size={23} /><strong>Chế độ khán giả</strong><span>Bạn đang theo dõi ván cờ trực tiếp. Nước đi và chat chỉ dành cho hai người chơi.</span></div>}
+                <button
+                  className="leave-button"
+                  onClick={() => setDialog("leave")}
+                >
+                  <Icon name="exit" size={15} />
+                  Rời phòng
+                </button>
                 <div className="connect-footnote">
                   <Icon name="shield" size={13} />
                   Không cần tài khoản · Chơi ngay
@@ -723,7 +806,7 @@ export default function App() {
                 </span>
                 <Icon name="arrow" size={17} />
               </button>
-            </aside>
+            </aside>}
           </div>
 
           <section className="below-grid">
@@ -831,8 +914,8 @@ export default function App() {
                 <span>@{account.username}</span>
                 <p>Lịch sử và bảng xếp hạng online của tài khoản được lưu trong MongoDB. Bạn có thể đăng nhập lại trên thiết bị khác.</p>
                 {authError && <p className="auth-error" role="alert">{authError}</p>}
-                <button className="button secondary full" onClick={logout} disabled={authBusy || isOnline}>Đăng xuất</button>
-                {isOnline && <small>Rời phòng hiện tại để đăng xuất.</small>}
+                <button className="button secondary full" onClick={logout} disabled={authBusy || (isOnline && room.status === "playing")}>Đăng xuất</button>
+                {isOnline && room.status === "playing" && <small>Hãy kết thúc hoặc rời ván hiện tại để đăng xuất.</small>}
               </div>
             ) : (
               <>

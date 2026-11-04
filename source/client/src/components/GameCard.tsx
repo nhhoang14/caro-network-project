@@ -20,6 +20,7 @@ type GameCardProps = {
   onMove: (index: number) => void;
   onBoardKeyDown: (event: KeyboardEvent<HTMLButtonElement>, index: number) => void;
   onPlayAgain: () => void;
+  onDeclineRematch: () => void;
   onReplay: () => void;
   onUndo: () => void;
   onToggleSound: () => void;
@@ -45,6 +46,7 @@ export default function GameCard({
   onMove,
   onBoardKeyDown,
   onPlayAgain,
+  onDeclineRematch,
   onReplay,
   onUndo,
   onToggleSound,
@@ -52,6 +54,13 @@ export default function GameCard({
 }: GameCardProps) {
   const lastMove = room.moves.at(-1)?.index;
   const rematchRequested = room.rematch.includes(me);
+  const rematchRequester = room.rematch.length === 1 ? room.rematch[0] : null;
+  const opponentRequestedRematch = Boolean(
+    isOnline && rematchRequester && rematchRequester !== me,
+  );
+  const rematchRequesterName = room.players.find(
+    (player) => player.id === rematchRequester,
+  )?.name;
 
   return (
     <section className="game-card" aria-label="Khu vực chơi cờ">
@@ -161,13 +170,26 @@ export default function GameCard({
         <div className="result-panel">
           <span className="result-icon"><Icon name="trophy" size={25} /></span>
           <div><strong>{resultText}</strong><p>{reasonText}</p></div>
-          {!isSpectator && (
+          {!isSpectator && !opponentRequestedRematch && (
             <button className="button primary" disabled={isOnline && rematchRequested} onClick={onPlayAgain}>
               <Icon name="undo" size={16} />
-              {isOnline && rematchRequested ? "Đợi đối thủ…" : "Chơi lại"}
+              {!isOnline
+                ? "Chơi lại"
+                : rematchRequested
+                  ? "Đang chờ xác nhận…"
+                  : "Mời chơi lại"}
             </button>
           )}
-          {isOnline && !isSpectator && room.rematch.length > 0 && !rematchRequested && <small>Đối thủ muốn chơi ván mới!</small>}
+          {opponentRequestedRematch && (
+            <div className="rematch-response" role="group" aria-label="Phản hồi lời mời chơi lại">
+              <span>{rematchRequesterName || "Đối thủ"} mời bạn chơi lại</span>
+              <button className="button secondary" onClick={onDeclineRematch}>Từ chối</button>
+              <button className="button primary" onClick={onPlayAgain}>Đồng ý</button>
+            </div>
+          )}
+          {isOnline && !isSpectator && rematchRequested && (
+            <small>Lời mời đã được gửi. Ván mới chỉ bắt đầu khi đối thủ đồng ý.</small>
+          )}
         </div>
       )}
 

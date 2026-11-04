@@ -63,13 +63,6 @@
     padding: 13px 12px;
     gap: 11px;
   }
-  .sidebar-tip {
-    margin-top: 32px;
-    padding: 20px 15px;
-  }
-  .sidebar-tip h3 {
-    font-size: 17px;
-  }
   .workspace {
     margin-left: 190px;
   }
@@ -207,7 +200,6 @@
   }
   .brand > span:last-child,
   .nav-label,
-  .sidebar-tip,
   .sidebar-bottom > div:nth-child(2),
   .sidebar-bottom > .green-dot {
     display: none;
@@ -378,9 +370,6 @@
   .topbar {
     padding: 0 22px;
   }
-  .demo-label {
-    font-size: 9px;
-  }
   .page-heading h1 {
     font-size: 25px;
   }
@@ -486,9 +475,6 @@
   .connection {
     font-size: 9px;
     gap: 6px;
-  }
-  .demo-label {
-    display: none;
   }
   main {
     padding: 25px 14px 0;

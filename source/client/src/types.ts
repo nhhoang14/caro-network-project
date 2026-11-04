@@ -98,7 +98,7 @@ export type ClientCommand =
   | { type: "spectate"; roomId: string }
   | { type: "move"; index: number }
   | { type: "chat"; text: string }
-  | { type: "resign" | "rematch" | "leave" | "stats" };
+  | { type: "resign" | "rematch" | "rematchDecline" | "leave" | "stats" };
 
 export type ServerEvent =
   | {
@@ -119,4 +119,5 @@ export type ServerEvent =
   | { type: "left" }
   | { type: "matchmaking"; waiting: boolean }
   | { type: "stats"; history?: ServerMatch[]; leaderboard?: Score[] }
+  | { type: "notice"; message: string }
   | { type: "error"; message: string };

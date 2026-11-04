@@ -317,6 +317,16 @@ public class RoomService {
             if (!"playing".equals(room.status)) return;
             String other = room.players.stream().filter(p -> !p.id.equals(user.id)).findFirst().map(p -> p.id).orElse(null);
             finish(room, other, "resign", List.of()); broadcast(room);
+        } else if (type.equals("rematchDecline")) {
+            if (!"finished".equals(room.status)) return;
+            if (room.rematch.size() != 1 || room.rematch.contains(user.id)) {
+                error(user, "Không có lời mời chơi lại nào cần phản hồi."); return;
+            }
+            String requesterId = room.rematch.iterator().next();
+            room.rematch.clear();
+            broadcast(room);
+            room.players.stream().filter(player -> player.id.equals(requesterId)).findFirst()
+                    .ifPresent(player -> send(player, map("type", "notice", "message", user.name + " đã từ chối lời mời chơi lại.")));
         } else if (type.equals("rematch")) {
             if (!"finished".equals(room.status)) return;
             if (room.players.size() < 2) { error(user, "Đối thủ đã rời phòng. Hãy tạo phòng mới."); return; }

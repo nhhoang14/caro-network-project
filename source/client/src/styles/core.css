@@ -204,41 +204,6 @@ input:focus {
   font-size: 12px;
   padding: 2px 4px;
 }
-.sidebar-tip {
-  margin: 48px 5px 30px;
-  padding: 23px 19px 20px;
-  background: #f8f7fc;
-  border: 1px solid #efedf7;
-  border-radius: 12px;
-  position: relative;
-  overflow: hidden;
-}
-.tip-symbol {
-  color: #9c8ae5;
-  font-size: 36px;
-  line-height: 1;
-  display: block;
-  margin-bottom: 17px;
-}
-.sidebar-tip h3 {
-  font-size: 18px;
-  line-height: 1.65;
-  letter-spacing: -0.6px;
-  font-weight: 650;
-}
-.sidebar-tip p {
-  font-size: 12px;
-  line-height: 1.9;
-  color: #92909e;
-  margin-top: 9px;
-}
-.tip-dots {
-  color: #b4a7e7;
-  display: block;
-  font-size: 20px;
-  margin-top: 24px;
-  letter-spacing: 5px;
-}
 .sidebar-bottom {
   display: flex;
   align-items: center;
@@ -329,14 +294,6 @@ input:focus {
 }
 .connection.disconnected .green-dot {
   background: #d2a35b;
-}
-.demo-label {
-  font-size: 10px;
-  letter-spacing: 0.7px;
-  color: #a5a6b0;
-  border: 1px solid #e6e7ec;
-  padding: 6px 8px;
-  border-radius: 5px;
 }
 main {
   max-width: 1430px;
