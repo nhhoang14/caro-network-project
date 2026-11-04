@@ -1,4 +1,5 @@
 import type { KeyboardEvent } from "react";
+import { SIZE } from "../../../shared/game.mjs";
 import type { Room } from "../types";
 import { Icon, Mark } from "./GamePrimitives";
 
@@ -6,12 +7,10 @@ type GameCardProps = {
   room: Room;
   isOnline: boolean;
   isSpectator: boolean;
-  isTurn: boolean;
-  statusText: string;
-  roomSubtext: string;
-  focusIndex: number;
   me: string;
-  waiting: boolean;
+  displayName: string;
+  paused: boolean;
+  myTurn: boolean;
   canMove: boolean;
   remaining: number;
   mySymbol: "X" | "O";
@@ -35,12 +34,10 @@ export default function GameCard({
   room,
   isOnline,
   isSpectator,
-  isTurn,
-  statusText,
-  roomSubtext,
-  focusIndex,
   me,
-  waiting,
+  displayName,
+  paused,
+  myTurn,
   canMove,
   remaining,
   mySymbol,
@@ -68,110 +65,121 @@ export default function GameCard({
   )?.name;
 
   return (
-    <section className="game-card">
-      <div className="game-card-header">
-        <div className="status-meta">
-          <span className="status-label">{isOnline ? "Phòng đấu" : "Bàn cờ luyện tập"}</span>
-          <span className="status-subtext">{roomSubtext}</span>
+    <section className="game-card" aria-label="Khu vực chơi cờ">
+      <div className="game-card-top">
+        <div className="board-title">
+          <span className="section-icon"><Icon name="grid" size={19} /></span>
+          <div>
+            <h2>Bàn cờ của bạn</h2>
+            <span>{isOnline ? `PHÒNG #${room.id}` : "MỘT VÁN NHẸ NHÀNG, MỘT NGÀY THẬT VUI"}</span>
+          </div>
         </div>
-        <div className="turn-indicator">
-          {waiting ? (
-            <span className="wait-pill">Chờ đối thủ</span>
-          ) : room.status === "playing" ? (
-            <span className={`turn-pill ${isTurn ? "active" : ""}`}>
-              <Mark symbol={room.turn} small />
-              {isTurn ? "Lượt của bạn" : `Lượt của ${room.turn}`}
-            </span>
-          ) : (
-            <span className="finish-pill">{resultText}</span>
-          )}
-          {room.status === "playing" && (
-            <span className={`clock-pill ${remaining <= 5 ? "urgent" : ""}`}>
-              <Icon name="clock" size={14} />
-              {remaining}s
-            </span>
-          )}
-        </div>
+        <span className={`mode-badge ${isOnline ? "online-mode" : ""}`}>
+          <Icon name={isOnline ? "link" : "bot"} size={15} />
+          {isSpectator ? "Đang xem" : isOnline ? "Đấu online" : "Đấu với máy"}
+        </span>
       </div>
 
-      <div className="players-bar">
-        {room.players.map((player, index) => {
+      <div className="player-strip">
+        {[0, 1].map((index) => {
+          const player = room.players[index];
           const symbol = index === 0 ? "X" : "O";
-          const isPlayerTurn = room.status === "playing" && room.turn === symbol;
-          const isMe = isOnline && player.id === me;
-          const isOpponent = isOnline && !isSpectator && !isMe;
-          const showOffline = isOnline && isOpponent && !player.online;
-
           return (
-            <div
-              key={player.id}
-              className={`player-chip ${isPlayerTurn ? "turn" : ""} ${showOffline ? "offline" : ""}`}
-            >
-              <Mark symbol={symbol} />
-              <div className="chip-meta">
-                <span className="chip-name">
-                  {player.name}
-                  {isMe ? " (Bạn)" : ""}
-                </span>
-                <span className="chip-role">
-                  {showOffline ? "Mất kết nối…" : `Quân ${symbol}`}
+            <div key={index} className={`player ${room.turn === symbol && room.status === "playing" ? "current" : ""}`}>
+              <div className={`player-avatar ${index === 1 ? "teal" : ""}`}>
+                {player?.id === "bot" ? <Icon name="bot" size={23} /> : (player?.name || "?").charAt(0).toUpperCase()}
+                <span className={player?.online ? "online-dot" : "offline-dot"} />
+              </div>
+              <div className="player-info">
+                <strong>
+                  {player?.id === me ? displayName || "Bạn" : player?.name || "Đang chờ đối thủ"}
+                  {player?.id === me && <small> BẠN</small>}
+                </strong>
+                <span>
+                  {!player
+                    ? "Mời một người bạn tham gia"
+                    : !player.online
+                      ? "Đang mất kết nối"
+                      : room.status === "finished"
+                        ? room.winner === player.id ? "Người chiến thắng" : "Đã kết thúc"
+                        : room.turn === symbol
+                          ? index === 1 && !isOnline ? "Đang suy nghĩ…" : "Đang đến lượt"
+                          : "Sẵn sàng"}
                 </span>
               </div>
+              <Mark symbol={symbol} small />
             </div>
           );
         })}
+        <span className="versus">VS</span>
       </div>
 
-      <div
-        className="board-wrap"
-        role="region"
-        aria-label="Bàn cờ Caro 15x15"
-      >
-        <div
-          className="board-grid"
-          role="grid"
-          aria-readonly={!canMove}
-        >
-          {room.board.map((cell, index) => {
-            const isWinning = room.line.includes(index);
-            const isLast = lastMove === index;
-            const isFocused = focusIndex === index;
-            const row = Math.floor(index / 15) + 1;
-            const col = (index % 15) + 1;
-            const isStar = STAR_CELLS.has(index);
+      <div className={`turn-bar ${paused ? "warning" : ""}`} role="status">
+        <span className="turn-description">
+          <span className="pulse-dot" />
+          {room.status === "waiting"
+            ? "Phòng đã sẵn sàng. Mời bạn bè vào chơi!"
+            : room.status === "finished"
+              ? resultText
+              : isSpectator
+                ? `Đang xem trực tiếp · ${room.spectators || 0} khán giả`
+                : paused
+                  ? "Tạm dừng · chờ đối thủ kết nối lại (30 giây)"
+                  : myTurn
+                    ? "Đến lượt bạn. Nước đi tiếp theo là gì?"
+                    : isOnline ? "Đối thủ đang suy nghĩ…" : "Caro Bot đang suy nghĩ…"}
+        </span>
+        <span className={`timer ${isOnline && remaining <= 10 ? "urgent" : ""}`}>
+          <Icon name="clock" size={15} />
+          {room.status === "finished"
+            ? "Đã kết thúc"
+            : room.status === "waiting"
+              ? "Chờ đối thủ"
+              : isOnline ? `${remaining}s` : "Không giới hạn"}
+        </span>
+      </div>
 
-            return (
+      <div className="board-area">
+        <div className="board-coordinate-top">
+          <span />
+          {Array.from({ length: SIZE }, (_, index) => <span key={index}>{String.fromCharCode(65 + index)}</span>)}
+        </div>
+        <div className="board-with-labels">
+          <div className="board-coordinate-side">
+            {Array.from({ length: SIZE }, (_, index) => <span key={index}>{index + 1}</span>)}
+          </div>
+          <div className={`board ${canMove ? "playable" : ""}`} role="group" aria-label="Bàn cờ 15 hàng, 15 cột. Dùng phím mũi tên để di chuyển, Enter để đánh.">
+            {room.board.map((stone, index) => (
               <button
                 key={index}
-                type="button"
-                role="gridcell"
-                tabIndex={isFocused ? 0 : -1}
-                aria-label={`Ô hàng ${row}, cột ${col}${cell ? `, quân ${cell}` : ", trống"}`}
-                disabled={!canMove || Boolean(cell)}
-                className={`board-cell ${cell ? "filled" : ""} ${isWinning ? "win" : ""} ${isLast ? "last" : ""} ${isStar ? "star" : ""}`}
+                data-cell={index}
+                tabIndex={index === (lastMove ?? 112) ? 0 : -1}
+                aria-label={`${String.fromCharCode(65 + (index % SIZE))}${Math.floor(index / SIZE) + 1}${stone ? `: ${stone}` : ": trống"}`}
+                aria-disabled={Boolean(stone) || !canMove}
+                className={`cell ${stone ? "occupied" : ""} ${room.line.includes(index) ? "winning" : ""} ${lastMove === index ? "last-move" : ""} ${index === 112 && !room.moves.length ? "center-cell" : ""}`}
                 onClick={() => onMove(index)}
                 onKeyDown={(event) => onBoardKeyDown(event, index)}
               >
-                {cell && <Mark symbol={cell} />}
+                {stone ? <Mark symbol={stone} /> : <span className={`ghost ghost-${mySymbol.toLowerCase()}`} />}
+                {STAR_CELLS.has(index) && !stone && <span className="board-star" />}
               </button>
-            );
-          })}
+            ))}
+          </div>
         </div>
       </div>
 
       {room.status === "finished" && (
-        <div className="game-card-footer" role="status" aria-live="polite">
-          <div className="finish-message">
-            <strong>{resultText}</strong>
-            <p>{reasonText}</p>
-          </div>
+        <div className="result-panel">
+          <span className="result-icon"><Icon name="trophy" size={25} /></span>
+          <div><strong>{resultText}</strong><p>{reasonText}</p></div>
           {!isSpectator && !opponentRequestedRematch && (
             <button className="button primary" disabled={isOnline && rematchRequested} onClick={onPlayAgain}>
-              {isOnline
-                ? rematchRequested
-                  ? "Đã gửi lời mời…"
-                  : "Chơi lại"
-                : "Ván mới"}
+              <Icon name="undo" size={16} />
+              {!isOnline
+                ? "Chơi lại"
+                : rematchRequested
+                  ? "Đang chờ xác nhận…"
+                  : "Mời chơi lại"}
             </button>
           )}
           {opponentRequestedRematch && (
@@ -182,9 +190,7 @@ export default function GameCard({
             </div>
           )}
           {isOnline && !isSpectator && rematchRequested && (
-            <p className="rematch-hint">
-              Đang đợi đối thủ đồng ý để bắt đầu ván mới.
-            </p>
+            <small>Lời mời đã được gửi. Ván mới chỉ bắt đầu khi đối thủ đồng ý.</small>
           )}
         </div>
       )}
@@ -209,11 +215,6 @@ export default function GameCard({
           </button>
         )}
         <span className="action-note">{isOnline ? "Nước đi được xác nhận bởi server" : "Thử chiến thuật, tự tin hơn mỗi ván"}</span>
-        {isOnline && !isSpectator && room.status === "playing" && onDrawOffer && (
-          <button className="text-button" disabled={room.drawOfferedBy === me} onClick={onDrawOffer}>
-            <Icon name="handshake" size={17} /> {room.drawOfferedBy === me ? "Đang chờ hòa…" : "Xin hòa"}
-          </button>
-        )}
         <button className="text-button resign" disabled={room.status !== "playing" || isSpectator} onClick={onResign}>
           <Icon name="flag" size={17} /> Đầu hàng
         </button>
