@@ -934,7 +934,19 @@ export default function App() {
             role="dialog"
             aria-modal="true"
             aria-labelledby="modal-title"
-            style={dialog === "leaderboard" ? { maxWidth: 840, width: "95vw" } : undefined}
+            style={{
+              maxWidth:
+                dialog === "auth" || dialog === "rename" || dialog === "resign" || dialog === "practice" || dialog === "leave"
+                  ? 420
+                  : dialog === "onlinePlayers"
+                    ? 500
+                    : dialog === "rooms"
+                      ? 540
+                      : dialog === "leaderboard"
+                        ? 720
+                        : 600,
+              width: "95vw",
+            }}
           >
             <div className="modal-heading">
               <h2 id="modal-title">
