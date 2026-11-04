@@ -107,7 +107,7 @@ export default function OnlinePanel({
                           fontWeight: 600,
                         }}
                       >
-                        {u.score ?? 0} đ
+                        {(Number(u.score ?? 0)).toFixed(1)} đ
                       </span>
                     </div>
                     <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, marginTop: 4 }}>

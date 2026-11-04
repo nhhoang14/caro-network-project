@@ -1093,7 +1093,6 @@ export default function App() {
                 <p className="modal-description">
                   Chọn phòng để tham gia hoặc theo dõi trực tiếp.
                 </p>
-                <button className={`button full ${matching ? "secondary" : "primary"}`} disabled={isOnline || connection !== "online"} onClick={findMatch}>{matching ? "Hủy tìm trận" : `Tìm đối thủ tự động${matchingCount ? ` · ${matchingCount} đang chờ` : ""}`}</button>
                 {rooms.length ? (
                   <div className="room-list">
                     {rooms.map((item) => (
@@ -1118,7 +1117,7 @@ export default function App() {
                   <div className="modal-empty">
                     <Icon name="rooms" size={36} />
                     <h3>Chưa có phòng đang hoạt động.</h3>
-                    <p>Hãy tạo phòng hoặc tìm đối thủ tự động!</p>
+                    <p>Hãy tạo phòng mới để bạn bè cùng tham gia!</p>
                   </div>
                 )}
                 <button
@@ -1230,7 +1229,7 @@ export default function App() {
                               </td>
                               <td style={{ padding: "8px 12px", textAlign: "center" }}>
                                 <span style={{ background: "#dbeafe", color: "#1d4ed8", padding: "2px 8px", borderRadius: 12, fontWeight: 700, fontSize: 12.5 }}>
-                                  {totalScore} đ
+                                  {Number(totalScore).toFixed(1)} đ
                                 </span>
                               </td>
                               <td style={{ padding: "8px 12px", textAlign: "center", fontSize: 12 }}>
@@ -1240,13 +1239,13 @@ export default function App() {
                                 <span style={{ color: "#94a3b8" }}>({sc.played})</span>
                               </td>
                               <td style={{ padding: "8px 12px", textAlign: "center", fontWeight: 600, color: "#334155" }}>
-                                {sc.avgOpponentScore ?? 0} đ
+                                {Number(sc.avgOpponentScore ?? 0).toFixed(1)} đ
                               </td>
                               <td style={{ padding: "8px 12px", textAlign: "center", color: "#475569" }}>
-                                {sc.avgWinMoves ? `${sc.avgWinMoves}` : "—"}
+                                {sc.avgWinMoves ? Number(sc.avgWinMoves).toFixed(1) : "—"}
                               </td>
                               <td style={{ padding: "8px 12px", textAlign: "center", color: "#475569" }}>
-                                {sc.avgLossMoves ? `${sc.avgLossMoves}` : "—"}
+                                {sc.avgLossMoves ? Number(sc.avgLossMoves).toFixed(1) : "—"}
                               </td>
                             </tr>
                           );
