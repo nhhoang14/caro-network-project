@@ -25,6 +25,7 @@ export type Room = {
   remaining: number | null;
   messages: Message[];
   rematch: string[];
+  drawOfferedBy?: string | null;
   spectators?: number;
   serverTime?: number;
 };
@@ -35,6 +36,13 @@ export type LobbyRoom = {
   count: number;
   status: string;
   spectators: number;
+};
+
+export type OnlineUser = {
+  id: string;
+  name: string;
+  status: "idle" | "matching" | "playing" | "waiting";
+  profileId?: string;
 };
 
 export type HistoryItem = {
@@ -88,6 +96,8 @@ export type Dialog =
   | "resign"
   | "leave"
   | "practice"
+  | "onlinePlayers"
+  | "rename"
   | null;
 
 export type ClientCommand =
@@ -98,12 +108,25 @@ export type ClientCommand =
   | { type: "spectate"; roomId: string }
   | { type: "move"; index: number }
   | { type: "chat"; text: string }
+  | { type: "rename"; name: string }
+  | { type: "invite"; targetUserId: string; name?: string }
+  | { type: "inviteResponse"; invitationId: string; accept: boolean }
+  | { type: "drawOffer" }
+  | { type: "drawResponse"; accept: boolean }
   | { type: "resign" | "rematch" | "rematchDecline" | "leave" | "stats" };
+
+export type Invitation = {
+  id: string;
+  fromId: string;
+  fromName: string;
+  expiresAt: number;
+};
 
 export type ServerEvent =
   | {
       type: "welcome";
       id: string;
+      name?: string;
       token: string;
       profileId?: string;
       profileToken?: string;
@@ -114,10 +137,20 @@ export type ServerEvent =
       rooms: LobbyRoom[];
       online: number;
       matching?: number;
+      users?: OnlineUser[];
     }
   | { type: "room"; room: Room }
   | { type: "left" }
   | { type: "matchmaking"; waiting: boolean }
   | { type: "stats"; history?: ServerMatch[]; leaderboard?: Score[] }
+  | { type: "renamed"; name: string }
+  | {
+      type: "invitation";
+      id: string;
+      fromId: string;
+      fromName: string;
+      expiresAt: number;
+    }
+  | { type: "drawOfferReceived"; fromName: string }
   | { type: "notice"; message: string }
   | { type: "error"; message: string };

@@ -2,7 +2,7 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import { fileURLToPath } from "node:url";
 
-const backendPort = process.env.PORT || "3000";
+const backendPort = process.env.BACKEND_PORT || process.env.PORT || "8000";
 
 export default defineConfig({
   root: fileURLToPath(new URL(".", import.meta.url)),
@@ -10,6 +10,7 @@ export default defineConfig({
   build: { outDir: "dist", emptyOutDir: true },
   server: {
     host: "0.0.0.0",
+    port: 3000,
     proxy: {
       "/ws": { target: `ws://localhost:${backendPort}`, ws: true },
       "/api": {

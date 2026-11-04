@@ -1,4 +1,4 @@
-const port = process.env.PORT || "3000";
+const port = process.env.BACKEND_PORT || process.env.PORT || "8000";
 const healthUrl = `http://127.0.0.1:${port}/health`;
 const deadline = Date.now() + 120_000;
 

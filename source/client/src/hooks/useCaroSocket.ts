@@ -2,7 +2,9 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type {
   ClientCommand,
   ConnectionStatus,
+  Invitation,
   LobbyRoom,
+  OnlineUser,
   Room,
   Score,
   ServerEvent,
@@ -14,6 +16,7 @@ export function useCaroSocket(onError: (message: string) => void) {
   const [userId, setUserId] = useState("");
   const [connection, setConnection] = useState<ConnectionStatus>("connecting");
   const [rooms, setRooms] = useState<LobbyRoom[]>([]);
+  const [onlineUsers, setOnlineUsers] = useState<OnlineUser[]>([]);
   const [onlineCount, setOnlineCount] = useState(0);
   const [matchingCount, setMatchingCount] = useState(0);
   const [matching, setMatching] = useState(false);
@@ -21,6 +24,8 @@ export function useCaroSocket(onError: (message: string) => void) {
   const [leaderboard, setLeaderboard] = useState<Score[]>([]);
   const [profileId, setProfileId] = useState("");
   const [clockOffset, setClockOffset] = useState(0);
+  const [invitation, setInvitation] = useState<Invitation | null>(null);
+  const [drawOfferFrom, setDrawOfferFrom] = useState<string | null>(null);
   const socket = useRef<WebSocket | null>(null);
   const errorHandler = useRef(onError);
 
@@ -96,12 +101,27 @@ export function useCaroSocket(onError: (message: string) => void) {
           setRooms(data.rooms);
           setOnlineCount(data.online);
           setMatchingCount(data.matching || 0);
-        } else if (data.type === "room") setOnlineRoom(data.room);
-        else if (data.type === "left") setOnlineRoom(null);
-        else if (data.type === "matchmaking") setMatching(Boolean(data.waiting));
-        else if (data.type === "stats") {
+          if (data.users) setOnlineUsers(data.users);
+        } else if (data.type === "room") {
+          setOnlineRoom(data.room);
+          if (!data.room.drawOfferedBy) setDrawOfferFrom(null);
+        } else if (data.type === "left") {
+          setOnlineRoom(null);
+          setDrawOfferFrom(null);
+        } else if (data.type === "matchmaking") {
+          setMatching(Boolean(data.waiting));
+        } else if (data.type === "stats") {
           setServerHistory(data.history || []);
           setLeaderboard(data.leaderboard || []);
+        } else if (data.type === "invitation") {
+          setInvitation({
+            id: data.id,
+            fromId: data.fromId,
+            fromName: data.fromName,
+            expiresAt: data.expiresAt,
+          });
+        } else if (data.type === "drawOfferReceived") {
+          setDrawOfferFrom(data.fromName);
         } else if (data.type === "notice" || data.type === "error") {
           errorHandler.current(data.message);
         }
@@ -132,6 +152,7 @@ export function useCaroSocket(onError: (message: string) => void) {
     userId,
     connection,
     rooms,
+    onlineUsers,
     onlineCount,
     matchingCount,
     matching,
@@ -139,6 +160,10 @@ export function useCaroSocket(onError: (message: string) => void) {
     leaderboard,
     profileId,
     clockOffset,
+    invitation,
+    setInvitation,
+    drawOfferFrom,
+    setDrawOfferFrom,
     send,
     reconnect,
     resetServerData,

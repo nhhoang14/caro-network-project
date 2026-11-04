@@ -5,6 +5,7 @@ import {
   type FormEvent,
 } from "react";
 import InvitePanel from "./InvitePanel";
+import OnlinePanel from "./OnlinePanel";
 import ReplayPanel, { type Replay } from "./ReplayPanel";
 import GameCard from "./components/GameCard";
 import { Icon, Mark } from "./components/GamePrimitives";
@@ -49,6 +50,7 @@ export default function App() {
   const [chat, setChat] = useState("");
   const [toast, setToast] = useState("");
   const [dialog, setDialog] = useState<Dialog>(null);
+  const [renameInput, setRenameInput] = useState("");
   const [sound, setSound] = useState(() => loadStored("caro-sound", false));
   const [history, setHistory] = useState<HistoryItem[]>(() =>
     loadStored("caro-history", []),
@@ -62,6 +64,7 @@ export default function App() {
     userId,
     connection,
     rooms,
+    onlineUsers,
     onlineCount,
     matchingCount,
     matching,
@@ -69,6 +72,10 @@ export default function App() {
     leaderboard,
     profileId,
     clockOffset,
+    invitation,
+    setInvitation,
+    drawOfferFrom,
+    setDrawOfferFrom,
     send,
     reconnect,
     resetServerData,
@@ -435,6 +442,7 @@ export default function App() {
             <Icon name="rooms" />
             <span className="nav-text">Phòng chơi</span><span className="count-badge">{rooms.length}</span>
           </button>
+          <button className={`nav-item ${dialog === "onlinePlayers" ? "active" : ""}`} onClick={() => setDialog("onlinePlayers")}><Icon name="users" /><span className="nav-text">Kỳ thủ online</span><span className="count-badge">{onlineUsers.length}</span></button>
           <button
             className={`nav-item ${dialog === "history" ? "active" : ""}`}
             onClick={() => setDialog("history")}
@@ -453,10 +461,10 @@ export default function App() {
             <span className="nav-text">Cách chơi</span>
           </button>
         </nav>
-        <div className="sidebar-bottom">
+        <div className="sidebar-bottom" style={{ cursor: "pointer" }} onClick={() => { setRenameInput(name); setDialog("rename"); }} title="Bấm để đổi tên hiển thị">
           <div className="avatar">{(account?.name || name || "B").charAt(0).toUpperCase()}</div>
           <div>
-            <strong>{account?.name || name || "Người chơi mới"}</strong>
+            <strong>{account?.name || name || "Người chơi mới"} <Icon name="edit" size={12} /></strong>
             <span>{account ? `@${account.username}` : "Đang chơi với tư cách khách"}</span>
           </div>
           <span className="green-dot" />
@@ -614,6 +622,7 @@ export default function App() {
               onUndo={undo}
               onToggleSound={() => setSound(!sound)}
               onResign={() => setDialog("resign")}
+              onDrawOffer={() => { send({ type: "drawOffer" }); notify("Đã gửi đề nghị hòa đến đối thủ."); }}
             /> : (
               <section className="online-entry-grid" aria-label="Chọn cách đấu online">
                 <article className="online-setup-card room-setup-card">
@@ -857,6 +866,34 @@ export default function App() {
         </main>
       </div>
 
+            {invitation && (
+        <div className="modal-backdrop" style={{ zIndex: 9999 }}>
+          <div className="modal" role="dialog" aria-modal="true" style={{ maxWidth: 420 }}>
+            <div className="modal-header"><h2>Lời mời thách đấu</h2></div>
+            <p style={{ margin: "16px 0", fontSize: 16 }}>
+              Kỳ thủ <strong>{invitation.fromName}</strong> muốn thách đấu một ván Caro cùng bạn!
+            </p>
+            <div className="modal-actions" style={{ display: "flex", gap: 12 }}>
+              <button type="button" className="button secondary" style={{ flex: 1 }} onClick={() => { send({ type: "inviteResponse", invitationId: invitation.id, accept: false }); setInvitation(null); }}>Từ chối</button>
+              <button type="button" className="button primary" style={{ flex: 1 }} onClick={() => { send({ type: "inviteResponse", invitationId: invitation.id, accept: true }); setInvitation(null); }}>Chấp nhận</button>
+            </div>
+          </div>
+        </div>
+      )}
+      {drawOfferFrom && (
+        <div className="modal-backdrop" style={{ zIndex: 9999 }}>
+          <div className="modal" role="dialog" aria-modal="true" style={{ maxWidth: 420 }}>
+            <div className="modal-header"><h2>Đề nghị hòa cờ</h2></div>
+            <p style={{ margin: "16px 0", fontSize: 16 }}>
+              Đối thủ <strong>{drawOfferFrom}</strong> đề nghị hòa ván cờ này. Bạn có đồng ý không?
+            </p>
+            <div className="modal-actions" style={{ display: "flex", gap: 12 }}>
+              <button type="button" className="button secondary" style={{ flex: 1 }} onClick={() => { send({ type: "drawResponse", accept: false }); setDrawOfferFrom(null); }}>Tiếp tục đánh</button>
+              <button type="button" className="button primary" style={{ flex: 1 }} onClick={() => { send({ type: "drawResponse", accept: true }); setDrawOfferFrom(null); }}>Đồng ý hòa</button>
+            </div>
+          </div>
+        </div>
+      )}
       {toast && (
         <div className="toast" role="status">
           <Icon name="bolt" size={18} />
@@ -891,7 +928,7 @@ export default function App() {
                     ? "Bảng xếp hạng"
                   : dialog === "replay"
                     ? "Xem lại ván đấu"
-                    : dialog === "rules"
+                    : dialog === "onlinePlayers" ? "Kỳ thủ trực tuyến" : dialog === "rename" ? "Đổi tên hiển thị" : dialog === "rules"
                       ? "Caro, dễ chơi mà khó đoán."
                       : dialog === "resign"
                         ? "Dừng ván cờ tại đây?"
@@ -913,6 +950,7 @@ export default function App() {
                 <strong>{account.name}</strong>
                 <span>@{account.username}</span>
                 <p>Lịch sử và bảng xếp hạng online của tài khoản được lưu trong MongoDB. Bạn có thể đăng nhập lại trên thiết bị khác.</p>
+                <button type="button" className="button secondary full" style={{ marginBottom: 8 }} onClick={() => { setRenameInput(name); setDialog("rename"); }}><Icon name="edit" size={14} /> Đổi tên hiển thị</button>
                 {authError && <p className="auth-error" role="alert">{authError}</p>}
                 <button className="button secondary full" onClick={logout} disabled={authBusy || (isOnline && room.status === "playing")}>Đăng xuất</button>
                 {isOnline && room.status === "playing" && <small>Hãy kết thúc hoặc rời ván hiện tại để đăng xuất.</small>}
@@ -937,6 +975,39 @@ export default function App() {
                 </form>
               </>
             ))}
+                        {dialog === "rename" && (
+              <form onSubmit={(event) => {
+                event.preventDefault();
+                const trimmed = renameInput.trim();
+                if (!trimmed) return;
+                send({ type: "rename", name: trimmed });
+                setName(trimmed);
+                try { localStorage.setItem("caro-name", trimmed); } catch {}
+                notify("Đã đổi tên thành công: " + trimmed);
+                setDialog(null);
+              }}>
+                <p className="modal-description">Tên mới sẽ hiển thị cho các kỳ thủ khác và trên bảng xếp hạng.</p>
+                <div style={{ margin: "16px 0" }}>
+                  <input className="name-input" style={{ width: "100%", boxSizing: "border-box" }} placeholder="Nhập tên hiển thị mới" maxLength={24} value={renameInput} onChange={(event) => setRenameInput(event.target.value)} autoFocus />
+                </div>
+                <div className="modal-actions" style={{ display: "flex", gap: 12 }}>
+                  <button type="button" className="button secondary" style={{ flex: 1 }} onClick={() => setDialog(null)}>Hủy</button>
+                  <button type="submit" className="button primary" style={{ flex: 1 }}>Lưu tên</button>
+                </div>
+              </form>
+            )}
+            {dialog === "onlinePlayers" && (
+              <OnlinePanel
+                users={onlineUsers}
+                myUserId={userId}
+                isOnline={isOnline}
+                matching={matching}
+                onInvite={(targetId, targetName) => {
+                  send({ type: "invite", targetUserId: targetId, name });
+                  notify("Đã gửi lời mời thách đấu tới " + targetName + "!");
+                }}
+              />
+            )}
             {dialog === "rooms" && (
               <>
                 <p className="modal-description">

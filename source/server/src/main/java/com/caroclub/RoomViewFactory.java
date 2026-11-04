@@ -28,6 +28,7 @@ final class RoomViewFactory {
                 "line", room.line, "reason", room.reason,
                 "deadline", room.remaining != null ? null : room.deadline, "remaining", room.remaining,
                 "messages", room.messages, "rematch", new ArrayList<>(room.rematch),
+                "drawOfferedBy", room.drawOfferedBy,
                 "spectators", room.spectators.size(), "serverTime", serverTime);
     }
 
