@@ -270,9 +270,11 @@ h1 > span { color: #0a84ff; font-weight: 780; }
 .connect-card h2 { color: white; font-weight: 750; }
 .connect-card > p { color: #e2f2ff; font-size: 13px; }
 .card-overline, .field-label, .connect-footnote, .invite-label { color: #e3f2ff; }
-.name-input { background: rgb(255 255 255 / 18%); border-color: rgb(255 255 255 / 35%); color: white; border-radius: 12px; }
-.name-input::placeholder { color: #dfedff; }
-.name-input:focus { border-color: white; box-shadow: 0 0 0 3px rgb(255 255 255 / 18%); }
+.connect-card .name-input { background: rgb(255 255 255 / 18%); border-color: rgb(255 255 255 / 35%); color: white; border-radius: 12px; }
+.connect-card .name-input::placeholder { color: #dfedff; }
+.connect-card .name-input:focus { border-color: white; box-shadow: 0 0 0 3px rgb(255 255 255 / 18%); }
+.modal .name-input, .modal input[type="text"] { color: #0f172a !important; background: #ffffff !important; }
+.modal .name-input::placeholder, .modal input[type="text"]::placeholder { color: #94a3b8 !important; }
 .connect-card .button.primary { color: #0a66cc; background: white; box-shadow: 0 6px 18px rgb(12 61 150 / 14%); }
 .connect-card .button.primary:hover, .connect-card .button.white:hover { background: #ecf6ff; }
 .connect-card .button.white { color: #0875df; }

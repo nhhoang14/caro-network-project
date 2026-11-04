@@ -1023,7 +1023,26 @@ export default function App() {
               }}>
                 <p className="modal-description">Tên mới sẽ hiển thị cho các kỳ thủ khác và trên bảng xếp hạng.</p>
                 <div style={{ margin: "16px 0" }}>
-                  <input className="name-input" style={{ width: "100%", boxSizing: "border-box" }} placeholder="Nhập tên hiển thị mới" maxLength={24} value={renameInput} onChange={(event) => setRenameInput(event.target.value)} autoFocus />
+                  <input
+                    style={{
+                      width: "100%",
+                      boxSizing: "border-box",
+                      minHeight: 46,
+                      padding: "10px 14px",
+                      border: "1.5px solid #0a84ff",
+                      borderRadius: 12,
+                      background: "#ffffff",
+                      color: "#0f172a",
+                      fontSize: "1rem",
+                      fontWeight: 500,
+                      outline: "none",
+                    }}
+                    placeholder="Nhập tên hiển thị mới"
+                    maxLength={24}
+                    value={renameInput}
+                    onChange={(event) => setRenameInput(event.target.value)}
+                    autoFocus
+                  />
                 </div>
                 <div className="modal-actions" style={{ display: "flex", gap: 12 }}>
                   <button type="button" className="button secondary" style={{ flex: 1 }} onClick={() => setDialog(null)}>Hủy</button>
