@@ -196,8 +196,8 @@ public class MongoHistoryStore implements HistoryStore {
             }
         }
         return scores.values().stream()
-                .sorted(Comparator.comparingInt((Score s) -> s.wins).reversed()
-                        .thenComparing(Comparator.comparingInt((Score s) -> s.draws).reversed())
+                .sorted(Comparator.comparingInt(Score::points).reversed()
+                        .thenComparing(Comparator.comparingInt((Score s) -> s.wins).reversed())
                         .thenComparingInt(s -> s.played))
                 .limit(20).map(Score::asMap).toList();
     }
@@ -223,6 +223,7 @@ public class MongoHistoryStore implements HistoryStore {
         String name;
         int wins, draws, played;
         Score(String id, String name) { this.id = id; this.name = name; }
-        Map<String, Object> asMap() { return Map.of("id", id, "name", name, "wins", wins, "draws", draws, "played", played); }
+        int points() { return wins * 3 + draws; }
+        Map<String, Object> asMap() { return Map.of("id", id, "name", name, "wins", wins, "draws", draws, "played", played, "points", points()); }
     }
 }

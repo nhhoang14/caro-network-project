@@ -71,6 +71,7 @@ export type Score = {
   wins: number;
   draws: number;
   played: number;
+  points?: number;
 };
 
 export type Account = {

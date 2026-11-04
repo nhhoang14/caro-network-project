@@ -95,8 +95,6 @@ export default function App() {
     : room.remaining != null
       ? Math.ceil(room.remaining / 1000)
       : 30;
-  const localGames = history.filter((h) => h.mode !== "Online");
-  const wins = localGames.filter((h) => h.result === "Thắng").length;
   const myScore = leaderboard.find((score) => score.id === profileId);
   const playerReady = Boolean(account);
 
@@ -868,13 +866,13 @@ export default function App() {
                 <Icon name="trophy" size={21} />
               </span>
               <strong>
-                {(myScore?.wins ?? 0) + wins}
-                <small>Ván thắng</small>
+                {myScore?.wins ?? 0}
+                <small>Thắng online</small>
               </strong>
               <span className="stat-divider" />
               <strong>
-                {(myScore?.played ?? 0) + localGames.length}
-                <small>Ván đã chơi</small>
+                {myScore?.played ?? 0}
+                <small>Trận online</small>
               </strong>
               <button
                 className="icon-button"
@@ -1090,11 +1088,6 @@ export default function App() {
             )}
             {dialog === "history" && (
               <>
-                <p className="modal-description">
-                  {account
-                    ? "Ván online lưu trên MongoDB; ván đấu máy lưu theo tài khoản."
-                    : "Chế độ Khách: Bạn đang luyện tập với bot, lịch sử chỉ lưu tạm trên RAM (mất khi tải lại trang). Hãy đăng nhập để lưu kết quả."}
-                </p>
                 {serverHistory.length || history.some((item) => item.mode !== "Online") ? (
                   <div className="history-list">
                     {serverHistory.map((match) => {
@@ -1142,8 +1135,28 @@ export default function App() {
               </>
             )}
             {dialog === "leaderboard" && <>
-              <p className="modal-description">Thành tích các ván online đã hoàn tất, lưu trên server. Tên hiển thị do người chơi tự chọn.</p>
-              {leaderboard.length ? <div className="leaderboard-list">{leaderboard.map((score, index) => <div className="leaderboard-row" key={score.id}><span className="leaderboard-rank">{String(index + 1).padStart(2, "0")}</span><strong>{score.name}{score.id === profileId ? " · Bạn" : ""}</strong><span>{score.wins} thắng</span><small>{score.played} ván · {score.draws} hòa</small></div>)}</div> : <div className="modal-empty"><Icon name="trophy" size={36} /><h3>Chưa có kết quả online.</h3><p>Hoàn thành một trận để xuất hiện trên bảng xếp hạng.</p></div>}
+              <p className="modal-description">Bảng xếp hạng chỉ tính điểm khi thi đấu online (Thắng: +3 điểm, Hòa: +1 điểm).</p>
+              {leaderboard.length ? (
+                <div className="leaderboard-list">
+                  {leaderboard.map((score, index) => {
+                    const points = score.points ?? (score.wins * 3 + score.draws);
+                    return (
+                      <div className="leaderboard-row" key={score.id}>
+                        <span className="leaderboard-rank">{String(index + 1).padStart(2, "0")}</span>
+                        <strong>{score.name}{score.id === profileId ? " · Bạn" : ""}</strong>
+                        <span style={{ fontWeight: 700 }}>{points} điểm <small style={{ fontWeight: 400 }}>({score.wins} thắng)</small></span>
+                        <small>{score.played} ván · {score.draws} hòa</small>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="modal-empty">
+                  <Icon name="trophy" size={36} />
+                  <h3>Chưa có kết quả online.</h3>
+                  <p>Hoàn thành một trận online để xuất hiện trên bảng xếp hạng.</p>
+                </div>
+              )}
             </>}
             {dialog === "replay" && replaySource && <ReplayPanel replay={replaySource} />}
             {dialog === "rules" && (
