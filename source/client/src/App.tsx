@@ -254,10 +254,13 @@ export default function App() {
     const id = `${room.round}-${me}`;
     if (recorded.current.has(id)) return;
     recorded.current.add(id);
+    const isZeroMoveTimeout =
+      room.reason === "timeout" && (!room.moves || !room.moves.length);
+    const effectiveWinner = isZeroMoveTimeout ? null : room.winner;
     const item = {
       id,
       opponent: opponent?.name || (isOnline ? "Đối thủ" : "Caro Bot"),
-      result: !room.winner ? "Hòa" : room.winner === me ? "Thắng" : "Thua",
+      result: !effectiveWinner ? "Hòa" : effectiveWinner === me ? "Thắng" : "Thua",
       moves: room.moves.length,
       at: Date.now(),
       mode: isOnline ? "Online" : "Đấu với máy",
@@ -432,13 +435,21 @@ export default function App() {
         ?.focus();
     }
   }
-  const resultText = isSpectator ? (room.winner ? `${room.players.find((p) => p.id === room.winner)?.name || "Người chơi"} chiến thắng!` : "Ván đấu hòa") :
-    room.status === "finished"
-      ? !room.winner
-        ? !room.moves.length && room.reason === "timeout"
+  const isZeroMoveTimeout =
+    room.status === "finished" &&
+    room.reason === "timeout" &&
+    (!room.moves || !room.moves.length);
+  const effectiveWinner = isZeroMoveTimeout ? null : room.winner;
+  const resultText = isSpectator
+    ? effectiveWinner
+      ? `${room.players.find((p) => p.id === effectiveWinner)?.name || "Người chơi"} chiến thắng!`
+      : "Ván đấu hòa"
+    : room.status === "finished"
+      ? !effectiveWinner
+        ? isZeroMoveTimeout
           ? "Ván cờ xử hòa (0 nước đi)"
           : "Một ván hòa đầy cân sức!"
-        : room.winner === me
+        : effectiveWinner === me
           ? "Bạn đã chiến thắng!"
           : `${opponent?.name || "Đối thủ"} đã chiến thắng`
       : "";

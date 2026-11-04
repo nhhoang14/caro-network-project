@@ -188,7 +188,7 @@ export default function GameCard({
           <span className="result-icon"><Icon name="trophy" size={25} /></span>
           <div><strong>{resultText}</strong><p>{reasonText}</p></div>
           {!isSpectator && !opponentRequestedRematch && (
-            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            <div style={{ display: "flex", gap: 8, alignItems: "center", marginLeft: "auto" }}>
               <button className="button primary" disabled={isOnline && rematchRequested} onClick={onPlayAgain}>
                 <Icon name="undo" size={16} />
                 {!isOnline
@@ -205,7 +205,7 @@ export default function GameCard({
             </div>
           )}
           {opponentRequestedRematch && (
-            <div className="rematch-response" role="group" aria-label="Phản hồi lời mời chơi lại">
+            <div className="rematch-response" role="group" aria-label="Phản hồi lời mời chơi lại" style={{ marginLeft: "auto" }}>
               <span>{rematchRequesterName || "Đối thủ"} mời bạn chơi lại</span>
               <button className="button secondary" onClick={onDeclineRematch}>Từ chối</button>
               <button className="button primary" onClick={onPlayAgain}>Đồng ý</button>
