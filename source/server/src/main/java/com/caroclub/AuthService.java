@@ -24,20 +24,15 @@ public class AuthService {
     private static final BCryptPasswordEncoder PASSWORDS = new BCryptPasswordEncoder(12);
     private static final String DUMMY_HASH = PASSWORDS.encode("dummy-password-for-unknown-user");
     private final MongoTemplate mongo;
-    private final HistoryStore history;
     private final SecureRandom random = new SecureRandom();
     private final ConcurrentHashMap<String, Attempts> attempts = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, Account> memoryAccounts = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, AuthSession> memorySessions = new ConcurrentHashMap<>();
 
     public AuthService(MongoTemplate mongo) {
-        this(mongo, null);
-    }
-    @org.springframework.beans.factory.annotation.Autowired
-    public AuthService(MongoTemplate mongo, HistoryStore history) {
         this.mongo = mongo;
-        this.history = history;
     }
+
     public record AccountView(String id, String username, String name, String profileId) {}
     public record LoginResult(AccountView account, String token) {}
     private record Attempts(int count, long until) {}
@@ -71,12 +66,7 @@ public class AuthService {
         try {
             Profile profile = mongo.findById(account.profileId, Profile.class);
             if (profile != null) profileName = profile.name;
-        } catch (Exception e) {
-            try {
-                HistoryStore.ProfileSession ps = history.profileById(account.profileId);
-                if (ps != null && ps.profile() != null) profileName = ps.profile().name;
-            } catch (Exception ignored) {}
-        }
+        } catch (Exception ignored) {}
         return new AccountView(account.id, account.username, profileName, account.profileId);
     }
 
@@ -112,9 +102,6 @@ public class AuthService {
         Profile profile = new Profile(profileId, "account:" + UUID.randomUUID(), user);
 
         memoryAccounts.put(user, account);
-        try {
-            history.rename(new HistoryStore.ProfileSession(profile, null), user);
-        } catch (Exception ignored) {}
 
         try {
             mongo.insert(profile);

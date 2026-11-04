@@ -2,8 +2,6 @@ package com.caroclub;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import jakarta.annotation.PostConstruct;
-import jakarta.annotation.PreDestroy;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.EOFException;
@@ -16,6 +14,8 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.DisposableBean;
+import org.springframework.beans.factory.InitializingBean;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
@@ -24,7 +24,7 @@ import org.springframework.stereotype.Component;
  * Lắng nghe tại cổng 3001, sử dụng kỹ thuật Framing 4-byte Big-Endian Integer độ dài + JSON UTF-8.
  */
 @Component
-public class TcpServer {
+public class TcpServer implements InitializingBean, DisposableBean {
     private static final Logger log = LoggerFactory.getLogger(TcpServer.class);
     private final int port;
     private final RoomService roomService;
@@ -39,7 +39,16 @@ public class TcpServer {
         this.json = json;
     }
 
-    @PostConstruct
+    @Override
+    public void afterPropertiesSet() {
+        start();
+    }
+
+    @Override
+    public void destroy() {
+        stop();
+    }
+
     public void start() {
         threadPool.submit(() -> {
             try {
@@ -60,7 +69,6 @@ public class TcpServer {
         });
     }
 
-    @PreDestroy
     public void stop() {
         running = false;
         try {
@@ -149,4 +157,3 @@ public class TcpServer {
         }
     }
 }
-
