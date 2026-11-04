@@ -34,13 +34,13 @@ export default function OnlinePanel({
             const isMe = u.id === myUserId;
             const canInvite = !isMe && u.status === "idle" && !isOnline && !matching;
 
-            let statusLabel = "Đang rảnh";
+            let statusLabel = "Đang rỗi";
             let statusColor = "#10b981"; // green
             if (u.status === "matching") {
-              statusLabel = "Đang tìm trận";
+              statusLabel = "Đang bận (tìm trận)";
               statusColor = "#f59e0b"; // yellow
             } else if (u.status === "playing" || u.status === "waiting") {
-              statusLabel = "Đang trong phòng";
+              statusLabel = "Đang bận";
               statusColor = "#ef4444"; // red
             }
 
@@ -57,13 +57,19 @@ export default function OnlinePanel({
                   marginBottom: "8px",
                   background: isMe ? "#f0fdf4" : "var(--card-bg, #ffffff)",
                   border: isMe ? "1px solid #86efac" : "1px solid var(--border-color, #e2e8f0)",
+                  cursor: canInvite ? "pointer" : "default",
+                  transition: "all 0.15s ease",
                 }}
+                onClick={() => {
+                  if (canInvite) onInvite(u.id, u.name);
+                }}
+                title={canInvite ? `Click để thách đấu với ${u.name}` : undefined}
               >
                 <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                   <div
                     style={{
-                      width: 38,
-                      height: 38,
+                      width: 40,
+                      height: 40,
                       borderRadius: "50%",
                       backgroundColor: isMe ? "#0284c7" : "#64748b",
                       color: "white",
@@ -73,15 +79,38 @@ export default function OnlinePanel({
                       fontWeight: 700,
                       fontSize: 16,
                       textTransform: "uppercase",
+                      flexShrink: 0,
                     }}
                   >
                     {u.name ? u.name.charAt(0) : "P"}
                   </div>
                   <div>
-                    <strong style={{ fontSize: 15, display: "block" }}>
-                      {u.name} {isMe ? " (Bạn)" : ""}
-                    </strong>
-                    <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, marginTop: 2 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <strong
+                        style={{
+                          fontSize: 15,
+                          cursor: canInvite ? "pointer" : "default",
+                          color: canInvite ? "var(--primary, #0284c7)" : "inherit",
+                          textDecoration: canInvite ? "underline" : "none",
+                        }}
+                      >
+                        {u.name} {isMe ? " (Bạn)" : ""}
+                      </strong>
+                      <span
+                        style={{
+                          display: "inline-block",
+                          backgroundColor: "#e0f2fe",
+                          color: "#0369a1",
+                          padding: "2px 8px",
+                          borderRadius: "12px",
+                          fontSize: "12px",
+                          fontWeight: 600,
+                        }}
+                      >
+                        {u.score ?? 0} đ
+                      </span>
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, marginTop: 4 }}>
                       <span
                         style={{
                           width: 8,
@@ -111,7 +140,10 @@ export default function OnlinePanel({
                         ? "Người chơi đang bận"
                         : "Gửi lời mời thách đấu"
                     }
-                    onClick={() => onInvite(u.id, u.name)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (canInvite) onInvite(u.id, u.name);
+                    }}
                   >
                     Mời đấu
                   </button>

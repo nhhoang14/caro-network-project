@@ -94,7 +94,7 @@ export default function App() {
     ? Math.max(0, Math.ceil((room.deadline - now - clockOffset) / 1000))
     : room.remaining != null
       ? Math.ceil(room.remaining / 1000)
-      : 30;
+      : 15;
   const myScore = leaderboard.find((score) => score.id === profileId);
   const playerReady = Boolean(account);
 
@@ -662,11 +662,56 @@ export default function App() {
               onToggleSound={() => setSound(!sound)}
               onResign={() => setDialog("resign")}
               onDrawOffer={() => { send({ type: "drawOffer" }); notify("Đã gửi đề nghị hòa đến đối thủ."); }}
+              onLeave={() => isOnline ? setDialog("leave") : choosePractice()}
             /> : (
               <section className="online-entry-grid" aria-label="Chọn cách đấu online">
+                <article className="online-setup-card" style={{ gridColumn: "1 / -1", padding: "18px 20px" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12, flexWrap: "wrap", gap: 8 }}>
+                    <div>
+                      <span className="online-gate-kicker">THÁCH ĐẤU TRỰC TIẾP</span>
+                      <h2 style={{ margin: "2px 0 0", fontSize: "1.25rem" }}>Danh sách kỳ thủ online ({onlineUsers.length})</h2>
+                    </div>
+                    <span style={{ fontSize: 13, color: "var(--muted, #64748b)" }}>
+                      💡 Click vào tên kỳ thủ để gửi lời mời thách đấu
+                    </span>
+                  </div>
+                  <OnlinePanel
+                    users={onlineUsers}
+                    myUserId={userId}
+                    isOnline={isOnline}
+                    matching={matching}
+                    onInvite={(targetId, targetName) => {
+                      send({ type: "invite", targetUserId: targetId, name });
+                      notify("Đã gửi lời mời thách đấu tới " + targetName + "!");
+                    }}
+                  />
+                </article>
+
+                <article className="online-setup-card matchmaking-setup-card">
+                  <span className="setup-card-icon"><Icon name="shuffle" size={25} /></span>
+                  <span className="online-gate-kicker">GHÉP ĐẤU TỰ ĐỘNG</span>
+                  <h2>{matching ? "Đang tìm đối thủ…" : "Tìm đối thủ phù hợp"}</h2>
+                  <p>{matching
+                    ? "Bạn đang ở trong hàng chờ. Có thể hủy bất cứ lúc nào nếu muốn chọn cách chơi khác."
+                    : "Vào hàng chờ và để server tự động kết nối bạn với một người chơi khác đang sẵn sàng."}</p>
+                  <div className="matchmaking-stats">
+                    <span><strong>{onlineCount}</strong> đang kết nối</span>
+                    <span><strong>{matchingCount}</strong> đang chờ ghép</span>
+                  </div>
+                  <button
+                    className={`button full setup-match-button ${matching ? "secondary" : "primary"}`}
+                    disabled={connection !== "online"}
+                    onClick={findMatch}
+                  >
+                    <Icon name="shuffle" size={18} />
+                    {matching ? "Hủy tìm đối thủ" : "Bắt đầu ghép đấu"}
+                  </button>
+                  <small>Hệ thống ghép tự động · Không cần mã phòng</small>
+                </article>
+
                 <article className="online-setup-card room-setup-card">
                   <span className="setup-card-icon"><Icon name="rooms" size={25} /></span>
-                  <span className="online-gate-kicker">PHÒNG CHƠI RIÊNG</span>
+                  <span className="online-gate-kicker">PHÒNG RIÊNG</span>
                   <h2>Tạo hoặc tìm phòng</h2>
                   <p>Tạo phòng để mời bạn bè, xem danh sách phòng đang mở hoặc tham gia nhanh bằng mã.</p>
                   <button
@@ -701,28 +746,6 @@ export default function App() {
                       Vào phòng <Icon name="arrow" size={17} />
                     </button>
                   </form>
-                </article>
-
-                <article className="online-setup-card matchmaking-setup-card">
-                  <span className="setup-card-icon"><Icon name="shuffle" size={25} /></span>
-                  <span className="online-gate-kicker">GHÉP ĐẤU NHANH</span>
-                  <h2>{matching ? "Đang tìm đối thủ…" : "Tìm đối thủ phù hợp"}</h2>
-                  <p>{matching
-                    ? "Bạn đang ở trong hàng chờ. Có thể hủy bất cứ lúc nào nếu muốn chọn cách chơi khác."
-                    : "Vào hàng chờ và để server tự động kết nối bạn với một người chơi khác đang sẵn sàng."}</p>
-                  <div className="matchmaking-stats">
-                    <span><strong>{onlineCount}</strong> đang kết nối</span>
-                    <span><strong>{matchingCount}</strong> đang chờ ghép</span>
-                  </div>
-                  <button
-                    className={`button full setup-match-button ${matching ? "secondary" : "primary"}`}
-                    disabled={connection !== "online"}
-                    onClick={findMatch}
-                  >
-                    <Icon name="shuffle" size={18} />
-                    {matching ? "Hủy tìm đối thủ" : "Bắt đầu ghép đấu"}
-                  </button>
-                  <small>Hệ thống ghép tự động · Không cần mã phòng</small>
                 </article>
               </section>
             )}
@@ -866,13 +889,13 @@ export default function App() {
                 <Icon name="trophy" size={21} />
               </span>
               <strong>
-                {myScore?.wins ?? 0}
-                <small>Thắng online</small>
+                {myScore ? (typeof myScore.score === "number" ? myScore.score : (myScore.wins * 1.0 + myScore.draws * 0.5)) : 0} đ
+                <small>Điểm online</small>
               </strong>
               <span className="stat-divider" />
               <strong>
-                {myScore?.played ?? 0}
-                <small>Trận online</small>
+                {myScore?.wins ?? 0} thắng
+                <small>{myScore?.played ?? 0} trận ({myScore?.draws ?? 0} hòa)</small>
               </strong>
               <button
                 className="icon-button"
@@ -1024,17 +1047,19 @@ export default function App() {
                 <p className="modal-description">Tên mới sẽ hiển thị cho các kỳ thủ khác và trên bảng xếp hạng.</p>
                 <div style={{ margin: "16px 0" }}>
                   <input
+                    type="text"
+                    className="name-input"
                     style={{
                       width: "100%",
                       boxSizing: "border-box",
                       minHeight: 46,
                       padding: "10px 14px",
-                      border: "1.5px solid #0a84ff",
+                      border: "2px solid #0a84ff",
                       borderRadius: 12,
                       background: "#ffffff",
                       color: "#0f172a",
-                      fontSize: "1rem",
-                      fontWeight: 500,
+                      fontSize: "1.05rem",
+                      fontWeight: 600,
                       outline: "none",
                     }}
                     placeholder="Nhập tên hiển thị mới"
@@ -1153,30 +1178,104 @@ export default function App() {
                 )}
               </>
             )}
-            {dialog === "leaderboard" && <>
-              <p className="modal-description">Bảng xếp hạng chỉ tính điểm khi thi đấu online (Thắng: +3 điểm, Hòa: +1 điểm).</p>
-              {leaderboard.length ? (
-                <div className="leaderboard-list">
-                  {leaderboard.map((score, index) => {
-                    const points = score.points ?? (score.wins * 3 + score.draws);
-                    return (
-                      <div className="leaderboard-row" key={score.id}>
-                        <span className="leaderboard-rank">{String(index + 1).padStart(2, "0")}</span>
-                        <strong>{score.name}{score.id === profileId ? " · Bạn" : ""}</strong>
-                        <span style={{ fontWeight: 700 }}>{points} điểm <small style={{ fontWeight: 400 }}>({score.wins} thắng)</small></span>
-                        <small>{score.played} ván · {score.draws} hòa</small>
-                      </div>
-                    );
-                  })}
-                </div>
-              ) : (
-                <div className="modal-empty">
-                  <Icon name="trophy" size={36} />
-                  <h3>Chưa có kết quả online.</h3>
-                  <p>Hoàn thành một trận online để xuất hiện trên bảng xếp hạng.</p>
-                </div>
-              )}
-            </>}
+            {dialog === "leaderboard" && (
+              <>
+                <p className="modal-description" style={{ fontSize: 13, lineHeight: 1.5 }}>
+                  Bảng xếp hạng hệ thống theo 4 tiêu chí quy định: <strong>1. Tổng điểm (Thắng: 1đ, Hòa: 0.5đ, Thua: 0đ)</strong> ↓ · <strong>2. TB điểm đối thủ</strong> ↓ · <strong>3. TB nước đi thắng</strong> ↑ · <strong>4. TB nước đi thua</strong> ↓.
+                </p>
+                {leaderboard.length ? (
+                  <div className="leaderboard-list" style={{ maxHeight: 420, overflowY: "auto" }}>
+                    {leaderboard.map((sc, index) => {
+                      const isMe = sc.id === profileId;
+                      const totalScore = typeof sc.score === "number" ? sc.score : (sc.wins * 1.0 + sc.draws * 0.5);
+                      return (
+                        <div
+                          className="leaderboard-row"
+                          key={sc.id}
+                          style={{
+                            display: "flex",
+                            flexDirection: "column",
+                            gap: 6,
+                            padding: "12px 16px",
+                            borderRadius: 12,
+                            marginBottom: 8,
+                            background: isMe ? "#f0fdf4" : "var(--card-bg, #ffffff)",
+                            border: isMe ? "1px solid #86efac" : "1px solid var(--border-color, #e2e8f0)",
+                          }}
+                        >
+                          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                              <span
+                                className="leaderboard-rank"
+                                style={{
+                                  fontWeight: 700,
+                                  color: index === 0 ? "#eab308" : index === 1 ? "#94a3b8" : index === 2 ? "#b45309" : "#64748b",
+                                  fontSize: 16,
+                                }}
+                              >
+                                {String(index + 1).padStart(2, "0")}
+                              </span>
+                              <strong style={{ fontSize: 15 }}>
+                                {sc.name} {isMe ? " (Bạn)" : ""}
+                              </strong>
+                            </div>
+                            <span
+                              style={{
+                                backgroundColor: "#dbeafe",
+                                color: "#1d4ed8",
+                                padding: "4px 10px",
+                                borderRadius: 14,
+                                fontWeight: 700,
+                                fontSize: 14,
+                              }}
+                            >
+                              {totalScore} điểm
+                            </span>
+                          </div>
+
+                          <div
+                            style={{
+                              display: "grid",
+                              gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))",
+                              gap: 6,
+                              fontSize: 12,
+                              color: "#475569",
+                              marginTop: 2,
+                              background: isMe ? "rgba(255,255,255,0.7)" : "#f8fafc",
+                              padding: "8px 10px",
+                              borderRadius: 8,
+                            }}
+                          >
+                            <div>
+                              <span style={{ color: "#64748b" }}>Thành tích: </span>
+                              <strong>{sc.wins}T · {sc.draws}H · {sc.losses ?? (sc.played - sc.wins - sc.draws)}B</strong> ({sc.played} ván)
+                            </div>
+                            <div>
+                              <span style={{ color: "#64748b" }}>TB điểm đối thủ: </span>
+                              <strong>{sc.avgOpponentScore ?? 0} đ</strong>
+                            </div>
+                            <div>
+                              <span style={{ color: "#64748b" }}>TB nước thắng: </span>
+                              <strong>{sc.avgWinMoves ? `${sc.avgWinMoves} nước` : "—"}</strong>
+                            </div>
+                            <div>
+                              <span style={{ color: "#64748b" }}>TB nước thua: </span>
+                              <strong>{sc.avgLossMoves ? `${sc.avgLossMoves} nước` : "—"}</strong>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="modal-empty">
+                    <Icon name="trophy" size={36} />
+                    <h3>Chưa có kết quả online.</h3>
+                    <p>Hoàn thành một trận online để xuất hiện trên bảng xếp hạng.</p>
+                  </div>
+                )}
+              </>
+            )}
             {dialog === "replay" && replaySource && <ReplayPanel replay={replaySource} />}
             {dialog === "rules" && (
               <>
@@ -1198,7 +1297,7 @@ export default function App() {
                     </p>
                   </li>
                   <li>
-                    <strong>Mỗi lượt online có 30 giây.</strong>
+                    <strong>Mỗi lượt online có 15 giây.</strong>
                     <p>
                       Hết giờ hoặc đầu hàng sẽ thua ván. Mất kết nối được tạm
                       dừng tối đa 30 giây để kết nối lại.

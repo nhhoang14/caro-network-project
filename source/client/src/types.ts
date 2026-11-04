@@ -43,6 +43,7 @@ export type OnlineUser = {
   name: string;
   status: "idle" | "matching" | "playing" | "waiting";
   profileId?: string;
+  score?: number;
 };
 
 export type HistoryItem = {
@@ -68,10 +69,14 @@ export type ServerMatch = {
 export type Score = {
   id: string;
   name: string;
+  score: number;
   wins: number;
   draws: number;
+  losses: number;
   played: number;
-  points?: number;
+  avgOpponentScore: number;
+  avgWinMoves: number;
+  avgLossMoves: number;
 };
 
 export type Account = {

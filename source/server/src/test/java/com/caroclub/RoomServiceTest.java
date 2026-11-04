@@ -186,4 +186,22 @@ class RoomServiceTest {
         send(o, "{\"type\":\"match\",\"name\":\"Binh\"}");
         assertTrue(latest(o, "matchmaking").path("waiting").asBoolean());
     }
+
+    @Test void directInviteAssignsChallengedPlayerAsXAndChallengerAsO() throws Exception {
+        Client challenger = connect(null), challenged = connect(null);
+        send(challenger, "{\"type\":\"rename\",\"name\":\"Challenger\"}");
+        send(challenged, "{\"type\":\"rename\",\"name\":\"Challenged\"}");
+
+        send(challenger, "{\"type\":\"invite\",\"targetUserId\":\"" + challenged.user.id + "\"}");
+        JsonNode inv = latest(challenged, "invitation");
+        String invId = inv.path("id").asText();
+        assertEquals("Challenger", inv.path("name").asText());
+
+        send(challenged, "{\"type\":\"inviteResponse\",\"invitationId\":\"" + invId + "\",\"accept\":true}");
+
+        JsonNode room = latest(challenged, "room").path("room");
+        assertEquals("playing", room.path("status").asText());
+        assertEquals("Challenged", room.path("players").get(0).path("name").asText());
+        assertEquals("Challenger", room.path("players").get(1).path("name").asText());
+    }
 }

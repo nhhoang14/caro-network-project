@@ -22,7 +22,7 @@ import org.springframework.stereotype.Service;
 
 @Service
 public class RoomService {
-    public static final long TURN_MS = 30_000, RECONNECT_MS = 30_000;
+    public static final long TURN_MS = 15_000, RECONNECT_MS = 30_000;
     private final HistoryStore history;
     private final LongSupplier clock;
     private final SecureRandom random = new SecureRandom();
@@ -135,6 +135,7 @@ public class RoomService {
         List<Map<String, Object>> list = rooms.values().stream().filter(r -> !r.players.isEmpty())
                 .map(RoomViewFactory::lobbyRoom).toList();
         long online = sessions.values().stream().filter(p -> p.online).count();
+        Map<String, Double> allScores = history.allScores();
         List<Map<String, Object>> onlineUsers = sessions.values().stream()
                 .filter(u -> u.online)
                 .map(u -> {
@@ -146,8 +147,10 @@ public class RoomService {
                     } else if (queue.contains(u)) {
                         status = "matching";
                     }
+                    String pid = u.profile != null ? u.profile.profile().id : null;
+                    double score = (pid != null && allScores.containsKey(pid)) ? allScores.get(pid) : 0.0;
                     return map("id", u.id, "name", u.name, "status", status,
-                            "profileId", u.profile != null ? u.profile.profile().id : null);
+                            "profileId", pid, "score", score);
                 }).toList();
         Map<String, Object> payload = map("type", "lobby", "rooms", list, "online", online,
                 "matching", queue.size(), "users", onlineUsers);
@@ -238,6 +241,9 @@ public class RoomService {
         } else {
             room.rematch.clear();
             broadcast(room);
+            for (User remainingPlayer : room.players) {
+                send(remainingPlayer, map("type", "notice", "message", user.name + " đã dừng chơi và rời khỏi phòng."));
+            }
         }
         lobby();
     }
@@ -287,7 +293,7 @@ public class RoomService {
             inv.expiresAt = now() + 60_000;
             invitations.put(inv.id, inv);
 
-            send(target, map("type", "invitation", "id", inv.id, "fromId", user.id, "fromName", user.name, "expiresAt", inv.expiresAt));
+            send(target, map("type", "invitation", "id", inv.id, "fromId", user.id, "fromName", user.name, "name", user.name, "expiresAt", inv.expiresAt));
             send(user, map("type", "notice", "message", "Đã gửi lời mời đến " + target.name + "."));
             return;
         }
@@ -308,9 +314,10 @@ public class RoomService {
             if (!inv.from.online) { error(user, "Người mời đã ngoại tuyến."); return; }
             if (inv.from.roomId != null || user.roomId != null) { error(user, "Một trong hai người đang bận."); return; }
 
-            Room room = createRoom(inv.from);
+            // Người thách đấu nhận O (đi sau), người bị thách đấu nhận X (đi trước)
+            Room room = createRoom(user);
             if (room == null) { error(user, "Đã đạt giới hạn 100 phòng."); return; }
-            joinRoom(user, room);
+            joinRoom(inv.from, room);
             broadcast(room);
             lobby();
             return;

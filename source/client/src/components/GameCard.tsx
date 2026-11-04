@@ -26,6 +26,7 @@ type GameCardProps = {
   onToggleSound: () => void;
   onResign: () => void;
   onDrawOffer?: () => void;
+  onLeave?: () => void;
 };
 
 const STAR_CELLS = new Set([48, 56, 112, 168, 176]);
@@ -53,6 +54,7 @@ export default function GameCard({
   onToggleSound,
   onResign,
   onDrawOffer,
+  onLeave,
 }: GameCardProps) {
   const lastMove = room.moves.at(-1)?.index;
   const rematchRequested = room.rematch.includes(me);
@@ -74,10 +76,23 @@ export default function GameCard({
             <span>{isOnline ? `PHÒNG #${room.id}` : "MỘT VÁN NHẸ NHÀNG, MỘT NGÀY THẬT VUI"}</span>
           </div>
         </div>
-        <span className={`mode-badge ${isOnline ? "online-mode" : ""}`}>
-          <Icon name={isOnline ? "link" : "bot"} size={15} />
-          {isSpectator ? "Đang xem" : isOnline ? "Đấu online" : "Đấu với máy"}
-        </span>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <span className={`mode-badge ${isOnline ? "online-mode" : ""}`}>
+            <Icon name={isOnline ? "link" : "bot"} size={15} />
+            {isSpectator ? "Đang xem" : isOnline ? "Đấu online" : "Đấu với máy"}
+          </span>
+          {isOnline && onLeave && (
+            <button
+              type="button"
+              className="button secondary"
+              style={{ fontSize: 13, padding: "5px 12px", height: "auto" }}
+              onClick={onLeave}
+              title="Thoát khỏi bàn cờ"
+            >
+              <Icon name="exit" size={14} /> Thoát
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="player-strip">
@@ -173,14 +188,21 @@ export default function GameCard({
           <span className="result-icon"><Icon name="trophy" size={25} /></span>
           <div><strong>{resultText}</strong><p>{reasonText}</p></div>
           {!isSpectator && !opponentRequestedRematch && (
-            <button className="button primary" disabled={isOnline && rematchRequested} onClick={onPlayAgain}>
-              <Icon name="undo" size={16} />
-              {!isOnline
-                ? "Chơi lại"
-                : rematchRequested
-                  ? "Đang chờ xác nhận…"
-                  : "Mời chơi lại"}
-            </button>
+            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+              <button className="button primary" disabled={isOnline && rematchRequested} onClick={onPlayAgain}>
+                <Icon name="undo" size={16} />
+                {!isOnline
+                  ? "Chơi lại"
+                  : rematchRequested
+                    ? "Đang chờ xác nhận…"
+                    : "Mời chơi lại"}
+              </button>
+              {isOnline && onLeave && (
+                <button type="button" className="button secondary" onClick={onLeave}>
+                  <Icon name="exit" size={16} /> Thoát
+                </button>
+              )}
+            </div>
           )}
           {opponentRequestedRematch && (
             <div className="rematch-response" role="group" aria-label="Phản hồi lời mời chơi lại">
