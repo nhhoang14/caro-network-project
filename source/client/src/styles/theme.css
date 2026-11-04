@@ -19,23 +19,20 @@ button { transition: background .2s, border-color .2s, box-shadow .2s, transform
 .nav-item.active { color: #f4fffd; background: #1d5e62; box-shadow: inset 3px 0 #6de1ce; }
 .nav-active-dot { background: #7be7d3; }
 .count-badge { color: #bde6e0; background: #30515e; }
-.sidebar-tip { background: linear-gradient(150deg, #254653, #193744); border: 1px solid #355765; color: #e1f2ef; }
-.sidebar-tip p, .sidebar-tip .tip-symbol { color: #99cfc5; }
 .sidebar-bottom { color: #e6f6f4; }
 .sidebar-bottom { border-top-color: #31515d; }
 .sidebar-bottom div > span { color: #93b3bc; }
 .avatar { background: #d7f2e9; color: #0a756d; border-color: #264653; outline-color: #517f82; }
 .topbar { background: #f7fbfbdc; border-bottom-color: #deeaec; backdrop-filter: blur(18px); }
 .breadcrumb strong { color: #244653; }
-.demo-label { color: #438a84; border-color: #cae5e0; background: #e8f6f2; border-radius: 20px; }
 main { max-width: 1510px; }
-.page-heading { position: relative; isolation: isolate; padding: 30px 34px; background: linear-gradient(115deg, #113846, #126f70 70%, #169287); color: #f7fffd; border-radius: 22px; overflow: hidden; box-shadow: 0 18px 32px #0f58651c; }
-.page-heading::after { content: "×   ○   ×"; position: absolute; z-index: -1; right: 16%; top: -18px; transform: rotate(-19deg); font-size: 94px; font-weight: 800; letter-spacing: 22px; line-height: 1.5; opacity: .08; white-space: nowrap; }
-.eyebrow { color: #97e6d7; }
+.page-heading { position: relative; isolation: isolate; padding: 18px 24px; margin-bottom: 18px; background: linear-gradient(115deg, #113846, #126f70 70%, #169287); color: #f7fffd; border-radius: 18px; overflow: hidden; box-shadow: 0 12px 24px #0f586514; }
+.page-heading::after { content: "×   ○   ×"; position: absolute; z-index: -1; right: 12%; top: -14px; transform: rotate(-19deg); font-size: 64px; font-weight: 800; letter-spacing: 16px; line-height: 1.5; opacity: .07; white-space: nowrap; }
+.eyebrow { color: #97e6d7; font-size: 9px; margin-bottom: 8px; }
 .eyebrow > span { background: #89efcf; }
-h1 { font-size: clamp(28px, 2.8vw, 42px); line-height: 1.24; letter-spacing: -1.8px; }
+h1 { font-size: clamp(24px, 2.2vw, 32px); line-height: 1.18; letter-spacing: -1.4px; }
 h1 > span { color: #93e9db; font-weight: 700; }
-.page-heading p { color: #cce5e4; font-size: 13px; margin-top: 12px; }
+.page-heading p { color: #cce5e4; font-size: 12px; margin-top: 7px; line-height: 1.55; }
 .page-heading .room-browse { border: 1px solid #ffffff60; background: #ffffff16; color: white; border-radius: 12px; backdrop-filter: blur(6px); }
 .page-heading .room-browse:hover { background: #ffffff30; border-color: #ffffffa0; }
 .button { border-radius: 11px; font-weight: 650; }
@@ -125,5 +122,5 @@ h1 > span { color: #93e9db; font-weight: 700; }
 .replay-range { width: 100%; accent-color: #0b9589; cursor: pointer; }
 .replay-controls { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
 .replay-controls .button { min-width: 88px; }
-@media (max-width: 820px) { .page-heading { padding: 22px; } .page-heading::after { right: -20%; } .leaderboard-row { grid-template-columns: 34px 1fr auto; } .leaderboard-row small { grid-column: 2 / -1; } }
-@media (max-width: 560px) { .page-heading { border-radius: 16px; padding: 20px; } .page-heading .room-browse { align-self: flex-start; margin-top: 10px; } .modal { padding: 18px; } .room-row-actions { width: 100%; } .room-row-actions .button { flex: 1; } .history-row > .button { margin-left: 0; } .replay-controls .button { flex: 1 1 42%; } }
+@media (max-width: 820px) { .page-heading { padding: 17px 20px; } .page-heading::after { right: -12%; } .leaderboard-row { grid-template-columns: 34px 1fr auto; } .leaderboard-row small { grid-column: 2 / -1; } }
+@media (max-width: 560px) { .page-heading { border-radius: 14px; padding: 15px 17px; margin-bottom: 15px; } .page-heading .room-browse { align-self: flex-start; margin-top: 7px; } .modal { padding: 18px; } .room-row-actions { width: 100%; } .room-row-actions .button { flex: 1; } .history-row > .button { margin-left: 0; } .replay-controls .button { flex: 1 1 42%; } }

@@ -145,7 +145,7 @@ class RoomServiceTest {
         assertEquals(o.user.id, finished.path("winner").asText());
     }
 
-    @Test void resignationAndTwoRematchVotesStartANewRoundWithSwappedSides() throws Exception {
+    @Test void rematchInvitationRequiresOpponentAcceptanceAndSwapsSides() throws Exception {
         Client x = connect(null), o = connect(null);
         send(x, "{\"type\":\"create\",\"name\":\"An\"}");
         String room = latest(x, "room").path("room").path("id").asText();
@@ -153,12 +153,29 @@ class RoomServiceTest {
         send(x, "{\"type\":\"resign\"}");
         assertEquals("resign", latest(o, "room").path("room").path("reason").asText());
         send(x, "{\"type\":\"rematch\"}");
-        assertEquals("finished", latest(x, "room").path("room").path("status").asText());
+        JsonNode invitation = latest(x, "room").path("room");
+        assertEquals("finished", invitation.path("status").asText());
+        assertEquals(x.user.id, invitation.path("rematch").get(0).asText());
         send(o, "{\"type\":\"rematch\"}");
         JsonNode rematch = latest(x, "room").path("room");
         assertEquals("playing", rematch.path("status").asText());
         assertEquals("Binh", rematch.path("players").get(0).path("name").asText());
         assertEquals(0, rematch.path("moves").size());
+    }
+
+    @Test void opponentCanDeclineRematchInvitation() throws Exception {
+        Client x = connect(null), o = connect(null);
+        send(x, "{\"type\":\"create\",\"name\":\"An\"}");
+        String room = latest(x, "room").path("room").path("id").asText();
+        send(o, "{\"type\":\"join\",\"name\":\"Binh\",\"roomId\":\"" + room + "\"}");
+        send(x, "{\"type\":\"resign\"}");
+        send(x, "{\"type\":\"rematch\"}");
+        send(o, "{\"type\":\"rematchDecline\"}");
+
+        JsonNode declined = latest(x, "room").path("room");
+        assertEquals("finished", declined.path("status").asText());
+        assertEquals(0, declined.path("rematch").size());
+        assertTrue(latest(x, "notice").path("message").asText().contains("từ chối"));
     }
 
     @Test void matchmakingCanBeCancelled() throws Exception {

@@ -11,7 +11,7 @@ npm install
 npm start
 ```
 
-`npm start` tự build React, chạy Maven/Spring Boot trên cổng 3000 và phục vụ bản frontend vừa build. Để phát triển giao diện, dùng `npm run dev`: Vite ở cổng 5173 chuyển `/ws`, `/api` và `/health` sang Spring Boot ở cổng 3000. Có thể chạy riêng `npm run dev:server` và `npm run dev:client`.
+`npm start` tự build React, chạy Maven/Spring Boot trên cổng 3000 và phục vụ bản frontend vừa build. Để phát triển giao diện, dùng `npm run dev`: script đợi `/health` của Spring Boot sẵn sàng rồi mới mở Vite ở cổng 5173, sau đó Vite chuyển `/ws`, `/api` và `/health` sang Spring Boot ở cổng 3000. Có thể chạy riêng `npm run dev:server` và `npm run dev:client`.
 
 Biến môi trường:
 

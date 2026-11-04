@@ -42,7 +42,17 @@ export function useCaroSocket(onError: (message: string) => void) {
   const resetServerData = useCallback((clearProfile = false) => {
     setServerHistory([]);
     setLeaderboard([]);
-    if (clearProfile) setProfileId("");
+    if (clearProfile) {
+      setProfileId("");
+      setOnlineRoom(null);
+      setMatching(false);
+      try {
+        sessionStorage.removeItem("caro-session");
+        sessionStorage.removeItem("caro-profile");
+      } catch {
+        // Storage can be unavailable in hardened browsers.
+      }
+    }
   }, []);
 
   useEffect(() => {
@@ -92,7 +102,9 @@ export function useCaroSocket(onError: (message: string) => void) {
         else if (data.type === "stats") {
           setServerHistory(data.history || []);
           setLeaderboard(data.leaderboard || []);
-        } else if (data.type === "error") errorHandler.current(data.message);
+        } else if (data.type === "notice" || data.type === "error") {
+          errorHandler.current(data.message);
+        }
       };
       ws.onclose = (event) => {
         if (disposed) return;

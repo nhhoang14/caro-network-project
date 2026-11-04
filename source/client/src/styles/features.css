@@ -157,4 +157,48 @@
 .mode-option>span{font-size:12px;font-weight:600}
 .mode-option small{display:block;font-size:10px;line-height:1.6;font-weight:400;margin-top:4px;color:#a99ab9}
 .mode-picker>p{font-size:11px;color:#a196ae;line-height:1.8;margin-top:10px}
+.game-layout.practice-layout{grid-template-columns:minmax(0,1fr)}
+.game-layout.online-setup-layout{grid-template-columns:minmax(0,1fr)}
+.online-gate-card{min-height:560px;background:#fff;border:1px solid #dce8e9;border-radius:18px;box-shadow:0 10px 30px #2356620d;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:48px clamp(24px,6vw,80px)}
+.online-gate-kicker{font-size:9px;font-weight:700;letter-spacing:2px;color:#5c9e98;margin-bottom:15px}
+.online-gate-icon{width:62px;height:62px;border-radius:18px;display:grid;place-items:center;color:#08756e;background:#e6f6f2;border:1px solid #c7e9e2;margin-bottom:20px}
+.online-gate-card h2{color:#173f48;font-size:25px;letter-spacing:-.8px}
+.online-gate-card>p{max-width:490px;color:#71878d;font-size:12px;line-height:1.9;margin-top:12px}
+.online-name-form{width:min(100%,480px);text-align:left;margin-top:26px}
+.online-name-form label{display:block;color:#496c72;font-size:11px;font-weight:600;margin-bottom:8px}
+.online-name-form>div{display:flex;gap:10px}
+.online-name-form input{min-width:0;flex:1;height:43px;border:1px solid #cbdfe0;background:#f9fcfc;color:#244b52;padding:10px 13px;font-size:13px}
+.online-name-form input:focus{border-color:#4eaaa0;box-shadow:0 0 0 3px #6bc4b51f}
+.online-name-form .button{white-space:nowrap}
+.online-login-link{margin-top:17px;background:transparent;color:#4f8f89;font-size:11px;text-decoration:underline;text-underline-offset:3px}
+.online-entry-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:22px;width:100%}
+.online-setup-card{min-height:410px;display:flex;flex-direction:column;align-items:flex-start;background:#fff;border:1px solid #dce8e9;border-radius:20px;box-shadow:0 10px 30px #2356620d;padding:30px}
+.setup-card-icon{width:52px;height:52px;display:grid;place-items:center;color:#0a7e77;background:#e5f6f2;border:1px solid #c9e9e3;border-radius:15px;margin-bottom:18px}
+.online-setup-card h2{color:#173f48;font-size:23px;letter-spacing:-.7px;margin-bottom:10px}
+.online-setup-card>p{color:#71878d;font-size:12px;line-height:1.8;max-width:470px;margin-bottom:24px}
+.online-setup-card .online-gate-kicker{order:-1;margin-bottom:12px}
+.online-setup-card .setup-card-icon{order:-2}
+.online-setup-card>.button{justify-content:center;margin-top:10px}
+.online-setup-card>.button svg:last-child{margin-left:auto}
+.online-setup-card>.button svg:first-child{margin-right:auto}
+.setup-primary-action{margin-top:auto!important}
+.setup-divider{width:100%;display:flex;align-items:center;gap:10px;color:#91a3a8;font-size:9px;margin:18px 0 12px}
+.setup-divider span{height:1px;flex:1;background:#e2ebec}
+.setup-join-form{width:100%;display:flex;gap:8px}
+.setup-join-form input{min-width:0;flex:1;height:42px;padding:10px 12px;border:1px solid #d5e4e5;background:#f8fbfb;color:#244b52;font-size:12px;font-weight:600;letter-spacing:1.5px}
+.setup-join-form input::placeholder{color:#9aabad;font-weight:400;letter-spacing:0}
+.setup-join-form .button{white-space:nowrap;min-height:42px}
+.matchmaking-setup-card{background:linear-gradient(145deg,#f8fbff,#eef8ff 55%,#eefaf7)}
+.matchmaking-stats{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;width:100%;margin:auto 0 17px}
+.matchmaking-stats span{padding:16px 12px;background:#ffffffb8;border:1px solid #dbe9ec;border-radius:13px;color:#71868c;font-size:10px;text-align:center}
+.matchmaking-stats strong{display:block;color:#087a73;font-size:21px;margin-bottom:5px}
+.setup-match-button{justify-content:center;margin-top:0!important}
+.matchmaking-setup-card>small{align-self:center;color:#91a3a8;font-size:9px;margin-top:14px}
+.rematch-response{display:flex;align-items:center;justify-content:flex-end;gap:7px;margin-left:auto;flex-wrap:wrap}
+.rematch-response>span{width:100%;color:#4d7b69;font-size:10px;font-weight:600;text-align:right}
+.rematch-response .button{min-height:32px;padding:7px 11px;font-size:10px}
 @media(max-width:560px){.mode-picker{padding:11px;margin-bottom:15px}.mode-options{gap:7px}.mode-option{padding:11px 8px;gap:7px}.mode-option>span{font-size:11px}.mode-option small{font-size:8px}.mode-picker>p{font-size:10px}}
+@media(max-width:820px){.online-gate-card{min-height:430px;padding:38px 24px}.online-entry-grid{gap:15px}.online-setup-card{min-height:390px;padding:23px}}
+@media(max-width:680px){.online-entry-grid{grid-template-columns:1fr}.online-setup-card{min-height:0}.setup-primary-action{margin-top:8px!important}.matchmaking-stats{margin-top:4px}}
+@media(max-width:560px){.online-gate-card{min-height:390px;padding:31px 18px}.online-gate-card h2{font-size:21px}.online-name-form>div{flex-direction:column}.online-name-form .button{width:100%}.online-setup-card{padding:21px;border-radius:17px}.online-setup-card h2{font-size:20px}.setup-join-form{flex-direction:column}.setup-join-form .button{width:100%;justify-content:center}}
+@media(max-width:560px){.rematch-response{width:100%;margin-left:0}.rematch-response>span{text-align:left}.rematch-response .button{flex:1}}

@@ -4,8 +4,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "concurrently -k \"mvn -f server/pom.xml spring-boot:run\" \"npm run dev:client\"",
+    "dev": "concurrently -k \"npm run dev:server\" \"npm run dev:client:wait\"",
     "dev:client": "vite --config client/vite.config.ts",
+    "dev:client:wait": "node scripts/wait-for-server.mjs && npm run dev:client",
     "dev:server": "mvn -f server/pom.xml spring-boot:run",
     "build": "tsc --noEmit -p client/tsconfig.json && vite build --config client/vite.config.ts",
     "start": "npm run build && mvn -f server/pom.xml spring-boot:run",
