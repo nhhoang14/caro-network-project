@@ -665,28 +665,6 @@ export default function App() {
               onLeave={() => isOnline ? setDialog("leave") : choosePractice()}
             /> : (
               <section className="online-entry-grid" aria-label="Chọn cách đấu online">
-                <article className="online-setup-card" style={{ gridColumn: "1 / -1", padding: "18px 20px" }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12, flexWrap: "wrap", gap: 8 }}>
-                    <div>
-                      <span className="online-gate-kicker">THÁCH ĐẤU TRỰC TIẾP</span>
-                      <h2 style={{ margin: "2px 0 0", fontSize: "1.25rem" }}>Danh sách kỳ thủ online ({onlineUsers.length})</h2>
-                    </div>
-                    <span style={{ fontSize: 13, color: "var(--muted, #64748b)" }}>
-                      💡 Click vào tên kỳ thủ để gửi lời mời thách đấu
-                    </span>
-                  </div>
-                  <OnlinePanel
-                    users={onlineUsers}
-                    myUserId={userId}
-                    isOnline={isOnline}
-                    matching={matching}
-                    onInvite={(targetId, targetName) => {
-                      send({ type: "invite", targetUserId: targetId, name });
-                      notify("Đã gửi lời mời thách đấu tới " + targetName + "!");
-                    }}
-                  />
-                </article>
-
                 <article className="online-setup-card matchmaking-setup-card">
                   <span className="setup-card-icon"><Icon name="shuffle" size={25} /></span>
                   <span className="online-gate-kicker">GHÉP ĐẤU TỰ ĐỘNG</span>
