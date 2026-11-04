@@ -8,12 +8,14 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicLong;
 import org.junit.jupiter.api.Test;
 
 class RoomServiceTest {
     private final ObjectMapper json = new ObjectMapper();
     private final FakeHistory history = new FakeHistory();
-    private final RoomService service = new RoomService(history);
+    private final AtomicLong clock = new AtomicLong(1_000);
+    private final RoomService service = new RoomService(history, clock::get);
 
     private Client connect(String token) {
         Client client = new Client();
@@ -113,5 +115,58 @@ class RoomServiceTest {
         Client afterLogout = new Client();
         service.connect(sessionToken, afterLogout.events::add, () -> {}, guestToken, null);
         assertEquals(guestId, latest(afterLogout, "welcome").path("profileId").asText());
+    }
+
+    @Test void chatIsScopedTruncatedAndRateLimited() throws Exception {
+        Client x = connect(null), o = connect(null);
+        send(x, "{\"type\":\"create\",\"name\":\"An\"}");
+        String room = latest(x, "room").path("room").path("id").asText();
+        send(o, "{\"type\":\"join\",\"name\":\"Binh\",\"roomId\":\"" + room + "\"}");
+        send(x, "{\"type\":\"chat\",\"text\":\"Xin chao\"}");
+        assertEquals("Xin chao", latest(o, "room").path("room").path("messages").get(0).path("text").asText());
+        send(x, "{\"type\":\"chat\",\"text\":\"Qua nhanh\"}");
+        assertEquals("Bạn đang gửi tin nhắn quá nhanh.", latest(x, "error").path("message").asText());
+        clock.addAndGet(501);
+        String longText = "a".repeat(301);
+        send(x, "{\"type\":\"chat\",\"text\":\"" + longText + "\"}");
+        assertEquals(300, latest(o, "room").path("room").path("messages").get(1).path("text").asText().length());
+    }
+
+    @Test void timeoutFinishesTheGameForTheOtherPlayer() throws Exception {
+        Client x = connect(null), o = connect(null);
+        send(x, "{\"type\":\"create\",\"name\":\"An\"}");
+        String room = latest(x, "room").path("room").path("id").asText();
+        send(o, "{\"type\":\"join\",\"name\":\"Binh\",\"roomId\":\"" + room + "\"}");
+        clock.addAndGet(RoomService.TURN_MS + 1);
+        service.tick();
+        JsonNode finished = latest(o, "room").path("room");
+        assertEquals("finished", finished.path("status").asText());
+        assertEquals("timeout", finished.path("reason").asText());
+        assertEquals(o.user.id, finished.path("winner").asText());
+    }
+
+    @Test void resignationAndTwoRematchVotesStartANewRoundWithSwappedSides() throws Exception {
+        Client x = connect(null), o = connect(null);
+        send(x, "{\"type\":\"create\",\"name\":\"An\"}");
+        String room = latest(x, "room").path("room").path("id").asText();
+        send(o, "{\"type\":\"join\",\"name\":\"Binh\",\"roomId\":\"" + room + "\"}");
+        send(x, "{\"type\":\"resign\"}");
+        assertEquals("resign", latest(o, "room").path("room").path("reason").asText());
+        send(x, "{\"type\":\"rematch\"}");
+        assertEquals("finished", latest(x, "room").path("room").path("status").asText());
+        send(o, "{\"type\":\"rematch\"}");
+        JsonNode rematch = latest(x, "room").path("room");
+        assertEquals("playing", rematch.path("status").asText());
+        assertEquals("Binh", rematch.path("players").get(0).path("name").asText());
+        assertEquals(0, rematch.path("moves").size());
+    }
+
+    @Test void matchmakingCanBeCancelled() throws Exception {
+        Client x = connect(null), o = connect(null);
+        send(x, "{\"type\":\"match\",\"name\":\"An\"}");
+        send(x, "{\"type\":\"cancelMatch\"}");
+        assertFalse(latest(x, "matchmaking").path("waiting").asBoolean());
+        send(o, "{\"type\":\"match\",\"name\":\"Binh\"}");
+        assertTrue(latest(o, "matchmaking").path("waiting").asBoolean());
     }
 }

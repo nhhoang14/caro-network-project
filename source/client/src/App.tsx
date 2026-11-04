@@ -3,243 +3,25 @@ import {
   useRef,
   useState,
   type FormEvent,
-  type ReactNode,
 } from "react";
 import InvitePanel from "./InvitePanel";
 import ReplayPanel, { type Replay } from "./ReplayPanel";
+import GameCard from "./components/GameCard";
+import { Icon, Mark } from "./components/GamePrimitives";
+import { applyLocalMove, createPracticeRoom } from "./game/practice";
+import { useCaroSocket } from "./hooks/useCaroSocket";
+import { loadStored, saveStored } from "./lib/storage";
+import { authenticate, endSession, getCurrentAccount } from "./services/authApi";
+import type { Account, Dialog, HistoryItem, Room } from "./types";
 import {
   chooseBotMove,
   emptyBoard,
-  winningLine,
   SIZE,
-  type Stone,
 } from "../../shared/game.mjs";
 
-type Player = { id: string; name: string; online: boolean };
-type Move = { index: number; symbol: "X" | "O" };
-type Message = {
-  id: string;
-  userId: string;
-  name: string;
-  text: string;
-  at: number;
-};
-type Room = {
-  id: string;
-  round: string;
-  board: Stone[];
-  status: "waiting" | "playing" | "finished";
-  turn: "X" | "O";
-  players: Player[];
-  moves: Move[];
-  winner: string | null;
-  line: number[];
-  reason: string | null;
-  deadline: number | null;
-  remaining: number | null;
-  messages: Message[];
-  rematch: string[];
-  spectators?: number;
-  serverTime?: number;
-};
-type LobbyRoom = { id: string; host: string; count: number; status: string; spectators: number };
-type HistoryItem = {
-  id: string;
-  opponent: string;
-  result: string;
-  moves: number;
-  at: number;
-  mode: string;
-  sequence?: Move[];
-  players?: { name: string }[];
-};
-type ServerMatch = { id: string; players: { id: string; name: string }[]; winner: string | null; moves: Move[]; at: number; reason: string };
-type Score = { id: string; name: string; wins: number; draws: number; played: number };
-type Account = { id: string; username: string; name: string; profileId: string };
-type Dialog = "auth" | "rooms" | "history" | "leaderboard" | "replay" | "rules" | "resign" | "leave" | "practice" | null;
-
-function stored<T>(key: string, fallback: T): T {
-  try {
-    return JSON.parse(localStorage.getItem(key) || "null") ?? fallback;
-  } catch {
-    return fallback;
-  }
-}
-function save(key: string, value: unknown) {
-  try {
-    localStorage.setItem(key, JSON.stringify(value));
-  } catch {
-    /* private storage */
-  }
-}
-function practice(name: string): Room {
-  return {
-    id: "practice",
-    round: `local-${Date.now()}-${Math.random().toString(36).slice(2)}`,
-    board: emptyBoard(),
-    status: "playing",
-    turn: "X",
-    players: [
-      { id: "you", name: name || "Bạn", online: true },
-      { id: "bot", name: "Caro Bot", online: true },
-    ],
-    moves: [],
-    winner: null,
-    line: [],
-    reason: null,
-    deadline: null,
-    remaining: null,
-    messages: [],
-    rematch: [],
-  };
-}
-const paths: Record<string, ReactNode> = {
-  grid: (
-    <>
-      <rect x="3" y="3" width="18" height="18" rx="4" />
-      <path d="M3 9h18M3 15h18M9 3v18M15 3v18" />
-    </>
-  ),
-  rooms: (
-    <>
-      <rect x="3" y="4" width="7" height="7" rx="2" />
-      <rect x="14" y="4" width="7" height="7" rx="2" />
-      <rect x="3" y="15" width="7" height="6" rx="2" />
-      <path d="M14 18h7m-3.5-3.5v7" />
-    </>
-  ),
-  history: (
-    <>
-      <path d="M3 11a9 9 0 1 1 2.7 7M3 4v7h7M12 7v5l3 2" />
-    </>
-  ),
-  book: (
-    <>
-      <path d="M12 5v16M12 5C8 2 4 3 2 4v15c4-2 7-1 10 2 3-3 6-4 10-2V4c-3-1-6-2-10 1Z" />
-    </>
-  ),
-  arrow: <path d="M5 12h14m-5-5 5 5-5 5" />,
-  chevron: <path d="m9 5 7 7-7 7" />,
-  plus: <path d="M12 5v14M5 12h14" />,
-  copy: (
-    <>
-      <rect x="8" y="8" width="12" height="13" rx="2" />
-      <path d="M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h3" />
-    </>
-  ),
-  send: (
-    <>
-      <path d="m21 3-7 18-4-7-7-4 18-7ZM10 14 21 3" />
-    </>
-  ),
-  chat: <path d="M21 11a8 8 0 0 1-8 8H7l-5 3 1-7a8 8 0 1 1 18-4Z" />,
-  undo: (
-    <>
-      <path d="M9 4 3 10l6 6M3 10h11a7 7 0 0 1 7 7v3" />
-    </>
-  ),
-  flag: (
-    <>
-      <path d="M5 21V3m0 1c5-4 9 4 14 0v10c-5 4-9-4-14 0" />
-    </>
-  ),
-  clock: (
-    <>
-      <circle cx="12" cy="12" r="9" />
-      <path d="M12 7v5l3 2" />
-    </>
-  ),
-  volume: (
-    <>
-      <path d="m11 4-6 5H2v6h3l6 5V4ZM15 8a6 6 0 0 1 0 8m3-11a10 10 0 0 1 0 14" />
-    </>
-  ),
-  mute: (
-    <>
-      <path d="m11 4-6 5H2v6h3l6 5V4ZM16 9l6 6m0-6-6 6" />
-    </>
-  ),
-  close: <path d="m6 6 12 12M18 6 6 18" />,
-  bolt: <path d="m13 2-9 12h7l-1 8 10-12h-7l1-8Z" />,
-  shield: (
-    <>
-      <path d="m12 2 9 4v6c0 5-9 10-9 10S3 17 3 12V6l9-4Z" />
-      <path d="m8 12 3 3 5-6" />
-    </>
-  ),
-  trophy: (
-    <>
-      <path d="M7 3h10v6a5 5 0 0 1-10 0V3ZM7 5H3v3a4 4 0 0 0 5 4m9-7h4v3a4 4 0 0 1-5 4M12 14v6m-4 1h8" />
-    </>
-  ),
-  link: (
-    <>
-      <path d="m10 13 4-4m-6 7-1 1a4 4 0 0 1-6-6l5-5a4 4 0 0 1 6 0m0 2 1-1a4 4 0 0 1 6 6l-5 5a4 4 0 0 1-6 0" />
-    </>
-  ),
-  exit: (
-    <>
-      <path d="M9 3H4v18h5m6-14 5 5-5 5m-6-5h11" />
-    </>
-  ),
-  bot: (
-    <>
-      <rect x="4" y="6" width="16" height="14" rx="4" />
-      <path d="M12 2v4M1 11v5m22-5v5M8 16h8" />
-      <circle cx="8" cy="11" r=".7" />
-      <circle cx="16" cy="11" r=".7" />
-    </>
-  ),
-  eye: <><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6-10-6-10-6Z" /><circle cx="12" cy="12" r="2.5" /></>,
-  shuffle: <><path d="M3 7h4c5 0 5 10 10 10h4m-4-4 4 4-4 4M3 17h4c2 0 3-2 4-4m3-2c1-2 2-4 3-4h4m-4-4 4 4-4 4" /></>,
-};
-function Icon({ name, size = 20 }: { name: string; size?: number }) {
-  return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.7"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      {paths[name] || paths.grid}
-    </svg>
-  );
-}
-function Mark({
-  symbol,
-  small = false,
-}: {
-  symbol: "X" | "O";
-  small?: boolean;
-}) {
-  return (
-    <span
-      aria-hidden="true"
-      className={`mark mark-${symbol.toLowerCase()} ${small ? "small" : ""}`}
-    />
-  );
-}
-
 export default function App() {
-  const [name, setName] = useState(() => stored("caro-name", ""));
-  const [local, setLocal] = useState<Room>(() => practice(name));
-  const [onlineRoom, setOnlineRoom] = useState<Room | null>(null);
-  const [userId, setUserId] = useState("");
-  const [connection, setConnection] = useState<
-    "connecting" | "online" | "offline" | "replaced"
-  >("connecting");
-  const [rooms, setRooms] = useState<LobbyRoom[]>([]);
-  const [onlineCount, setOnlineCount] = useState(0);
-  const [matchingCount, setMatchingCount] = useState(0);
-  const [matching, setMatching] = useState(false);
-  const [serverHistory, setServerHistory] = useState<ServerMatch[]>([]);
-  const [leaderboard, setLeaderboard] = useState<Score[]>([]);
-  const [profileId, setProfileId] = useState("");
+  const [name, setName] = useState(() => loadStored("caro-name", ""));
+  const [local, setLocal] = useState<Room>(() => createPracticeRoom(name));
   const [account, setAccount] = useState<Account | null>(null);
   const [authMode, setAuthMode] = useState<"login" | "register">("login");
   const [authUsername, setAuthUsername] = useState("");
@@ -262,16 +44,30 @@ export default function App() {
   const [chat, setChat] = useState("");
   const [toast, setToast] = useState("");
   const [dialog, setDialog] = useState<Dialog>(null);
-  const [sound, setSound] = useState(() => stored("caro-sound", false));
+  const [sound, setSound] = useState(() => loadStored("caro-sound", false));
   const [history, setHistory] = useState<HistoryItem[]>(() =>
-    stored("caro-history", []),
+    loadStored("caro-history", []),
   );
   const [now, setNow] = useState(Date.now());
-  const [offset, setOffset] = useState(0);
-  const socket = useRef<WebSocket | null>(null);
   const audio = useRef<AudioContext | null>(null);
   const chatEnd = useRef<HTMLDivElement>(null);
   const recorded = useRef(new Set<string>());
+  const {
+    onlineRoom,
+    userId,
+    connection,
+    rooms,
+    onlineCount,
+    matchingCount,
+    matching,
+    serverHistory,
+    leaderboard,
+    profileId,
+    clockOffset,
+    send,
+    reconnect,
+    resetServerData,
+  } = useCaroSocket(setToast);
   const room = onlineRoom || local;
   const isOnline = Boolean(onlineRoom);
   const me = isOnline ? userId : "you";
@@ -286,11 +82,10 @@ export default function App() {
   const canMove = myTurn && (!isOnline || connection === "online");
   const opponent = room.players.find((p) => p.id !== me);
   const remaining = room.deadline
-    ? Math.max(0, Math.ceil((room.deadline - now - offset) / 1000))
+    ? Math.max(0, Math.ceil((room.deadline - now - clockOffset) / 1000))
     : room.remaining != null
       ? Math.ceil(room.remaining / 1000)
       : 30;
-  const lastMove = room.moves.at(-1)?.index;
   const localGames = history.filter((h) => h.mode !== "Online");
   const wins = localGames.filter((h) => h.result === "Thắng").length;
   const myScore = leaderboard.find((score) => score.id === profileId);
@@ -300,12 +95,11 @@ export default function App() {
   }
   useEffect(() => {
     let active = true;
-    fetch("/api/auth/me", { credentials: "same-origin" })
-      .then((response) => response.json())
-      .then((data: { account: Account | null }) => {
-        if (active && data.account) {
-          setAccount(data.account);
-          setName(data.account.name);
+    getCurrentAccount()
+      .then((current) => {
+        if (active && current) {
+          setAccount(current);
+          setName(current.name);
         }
       })
       .catch(() => {});
@@ -317,22 +111,13 @@ export default function App() {
     setAuthBusy(true);
     setAuthError("");
     try {
-      const response = await fetch(`/api/auth/${authMode}`, {
-        method: "POST",
-        credentials: "same-origin",
-        headers: { "Content-Type": "application/json", "X-Caro-Request": "1" },
-        body: JSON.stringify({ username: authUsername, password: authPassword }),
-      });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.message || "Không thể đăng nhập.");
-      const next = data.account as Account;
+      const next = await authenticate(authMode, authUsername, authPassword);
       setAccount(next);
       setName(next.name);
-      setServerHistory([]);
-      setLeaderboard([]);
+      resetServerData();
       setAuthPassword("");
       setDialog(null);
-      socket.current?.close();
+      reconnect();
       notify(authMode === "register" ? "Đã tạo tài khoản và đăng nhập." : "Đăng nhập thành công.");
     } catch (error) {
       setAuthError(error instanceof Error ? error.message : "Không thể kết nối server.");
@@ -343,16 +128,11 @@ export default function App() {
     setAuthBusy(true);
     setAuthError("");
     try {
-      const response = await fetch("/api/auth/logout", {
-        method: "POST", credentials: "same-origin", headers: { "X-Caro-Request": "1" },
-      });
-      if (!response.ok) throw new Error("Không thể đăng xuất.");
+      await endSession();
       setAccount(null);
-      setProfileId("");
-      setServerHistory([]);
-      setLeaderboard([]);
+      resetServerData(true);
       setDialog(null);
-      socket.current?.close();
+      reconnect();
       notify("Đã đăng xuất. Bạn vẫn có thể chơi với tư cách khách.");
     } catch (error) {
       setAuthError(error instanceof Error ? error.message : "Không thể kết nối server.");
@@ -380,81 +160,6 @@ export default function App() {
       /* audio unavailable */
     }
   }
-  function send(data: object) {
-    if (socket.current?.readyState !== WebSocket.OPEN) {
-      notify("Đang mất kết nối server. Bạn vẫn có thể đấu với máy.");
-      return false;
-    }
-    socket.current.send(JSON.stringify(data));
-    return true;
-  }
-
-  useEffect(() => {
-    let disposed = false,
-      retry: ReturnType<typeof setTimeout>;
-    function connect() {
-      if (disposed) return;
-      setConnection("connecting");
-      const ws = new WebSocket(
-        `${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/ws`,
-      );
-      socket.current = ws;
-      ws.onopen = () => {
-        let token = null;
-        let profileToken = null;
-        try {
-          token = sessionStorage.getItem("caro-session");
-          profileToken = sessionStorage.getItem("caro-profile");
-        } catch {
-          /* storage unavailable */
-        }
-        ws.send(JSON.stringify({ type: "hello", token, profileToken }));
-      };
-      ws.onmessage = (event) => {
-        if (disposed) return;
-        const data = JSON.parse(event.data);
-        if (data.type === "welcome") {
-          try {
-            sessionStorage.setItem("caro-session", data.token);
-            if (data.profileToken) sessionStorage.setItem("caro-profile", data.profileToken);
-          } catch {
-            /* storage unavailable */
-          }
-          setUserId(data.id);
-          setProfileId(data.profileId || "");
-          setConnection("online");
-          setOffset(data.serverTime - Date.now());
-          setOnlineRoom(null);
-        } else if (data.type === "lobby") {
-          setRooms(data.rooms);
-          setOnlineCount(data.online);
-          setMatchingCount(data.matching || 0);
-        } else if (data.type === "room") setOnlineRoom(data.room);
-        else if (data.type === "left") setOnlineRoom(null);
-        else if (data.type === "matchmaking") setMatching(Boolean(data.waiting));
-        else if (data.type === "stats") { setServerHistory(data.history || []); setLeaderboard(data.leaderboard || []); }
-        else if (data.type === "error") notify(data.message);
-      };
-      ws.onclose = (event) => {
-        if (disposed) return;
-        if (event.code === 4001) {
-          setConnection("replaced");
-          return;
-        }
-        setConnection("offline");
-        setMatching(false);
-        retry = setTimeout(connect, 1800);
-      };
-      ws.onerror = () => ws.close();
-    }
-    connect();
-    return () => {
-      disposed = true;
-      clearTimeout(retry);
-      socket.current?.close();
-    };
-  }, []);
-
   useEffect(() => {
     const timer = setInterval(() => setNow(Date.now()), 250);
     return () => clearInterval(timer);
@@ -465,10 +170,10 @@ export default function App() {
     return () => clearTimeout(timer);
   }, [toast]);
   useEffect(() => {
-    save("caro-name", name);
+    saveStored("caro-name", name);
   }, [name]);
   useEffect(() => {
-    save("caro-sound", sound);
+    saveStored("caro-sound", sound);
   }, [sound]);
   useEffect(() => {
     const container = chatEnd.current?.parentElement;
@@ -480,7 +185,7 @@ export default function App() {
       setLocal((current) => {
         if (current.status !== "playing" || current.turn !== "O")
           return current;
-        return applyMove(
+        return applyLocalMove(
           current,
           chooseBotMove([...current.board]),
           "O",
@@ -507,7 +212,7 @@ export default function App() {
     };
     setHistory((current) => {
       const next = [item, ...current.filter((h) => h.id !== id)].slice(0, 30);
-      save("caro-history", next);
+      saveStored("caro-history", next);
       return next;
     });
   }, [room.status, room.winner, room.reason]);
@@ -543,34 +248,11 @@ export default function App() {
     };
   }, [dialog]);
 
-  function applyMove(
-    current: Room,
-    index: number,
-    symbol: "X" | "O",
-    playerId: string,
-  ): Room {
-    if (index < 0 || current.board[index]) return current;
-    const board = [...current.board];
-    board[index] = symbol;
-    const moves = [...current.moves, { index, symbol }];
-    const line = winningLine(board, index, symbol);
-    const finished = Boolean(line.length) || moves.length === SIZE * SIZE;
-    return {
-      ...current,
-      board,
-      moves,
-      line,
-      turn: symbol === "X" ? "O" : "X",
-      status: finished ? "finished" : "playing",
-      winner: line.length ? playerId : null,
-      reason: finished ? (line.length ? "five" : "draw") : null,
-    };
-  }
   function move(index: number) {
     if (!canMove || room.board[index]) return;
     beep();
     if (isOnline) send({ type: "move", index });
-    else setLocal((current) => applyMove(current, index, "X", "you"));
+    else setLocal((current) => applyLocalMove(current, index, "X", "you"));
   }
   function enterRoom(roomId?: string) {
     if (!name.trim()) {
@@ -586,18 +268,15 @@ export default function App() {
       notify("Mã phòng gồm 6 ký tự, ví dụ A1B2C3.");
       return;
     }
-    if (
-      send({
-        type: roomId == null ? "create" : "join",
-        name: name.trim(),
-        roomId,
-      })
-    )
+    const command = roomId == null
+      ? { type: "create" as const, name: name.trim() }
+      : { type: "join" as const, name: name.trim(), roomId };
+    if (send(command))
       setDialog(null);
   }
   function newPractice() {
     recorded.current.clear();
-    setLocal(practice(name));
+    setLocal(createPracticeRoom(name));
   }
   function startPractice() {
     if (isOnline && !send({ type: "leave" })) return;
@@ -835,233 +514,28 @@ export default function App() {
             </section>
           )}
           <div className="game-layout">
-            <section className="game-card" aria-label="Khu vực chơi cờ">
-              <div className="game-card-top">
-                <div className="board-title">
-                  <span className="section-icon">
-                    <Icon name="grid" size={19} />
-                  </span>
-                  <div>
-                    <h2>Bàn cờ của bạn</h2>
-                    <span>
-                      {isOnline
-                        ? `PHÒNG #${room.id}`
-                        : "MỘT VÁN NHẸ NHÀNG, MỘT NGÀY THẬT VUI"}
-                    </span>
-                  </div>
-                </div>
-                <span className={`mode-badge ${isOnline ? "online-mode" : ""}`}>
-                  <Icon name={isOnline ? "link" : "bot"} size={15} />
-                  {isSpectator ? "Đang xem" : isOnline ? "Đấu online" : "Đấu với máy"}
-                </span>
-              </div>
-              <div className="player-strip">
-                {[0, 1].map((index) => {
-                  const player = room.players[index],
-                    symbol = index === 0 ? "X" : "O";
-                  return (
-                    <div
-                      key={index}
-                      className={`player ${room.turn === symbol && room.status === "playing" ? "current" : ""}`}
-                    >
-                      <div
-                        className={`player-avatar ${index === 1 ? "teal" : ""}`}
-                      >
-                        {player?.id === "bot" ? (
-                          <Icon name="bot" size={23} />
-                        ) : (
-                          (player?.name || "?").charAt(0).toUpperCase()
-                        )}
-                        <span
-                          className={
-                            player?.online ? "online-dot" : "offline-dot"
-                          }
-                        />
-                      </div>
-                      <div className="player-info">
-                        <strong>
-                          {player?.id === me
-                            ? name || "Bạn"
-                            : player?.name || "Đang chờ đối thủ"}
-                          {player?.id === me && <small> BẠN</small>}
-                        </strong>
-                        <span>
-                          {!player
-                            ? "Mời một người bạn tham gia"
-                            : !player.online
-                              ? "Đang mất kết nối"
-                              : room.status === "finished"
-                                ? room.winner === player.id
-                                  ? "Người chiến thắng"
-                                  : "Đã kết thúc"
-                                : room.turn === symbol
-                                  ? index === 1 && !isOnline
-                                    ? "Đang suy nghĩ…"
-                                    : "Đang đến lượt"
-                                  : "Sẵn sàng"}
-                        </span>
-                      </div>
-                      <Mark symbol={symbol} small />
-                    </div>
-                  );
-                })}
-                <span className="versus">VS</span>
-              </div>
-
-              <div
-                className={`turn-bar ${paused ? "warning" : ""}`}
-                role="status"
-              >
-                <span className="turn-description">
-                  <span className="pulse-dot" />
-                  {room.status === "waiting"
-                    ? "Phòng đã sẵn sàng. Mời bạn bè vào chơi!"
-                    : room.status === "finished"
-                      ? resultText
-                      : isSpectator
-                        ? `Đang xem trực tiếp · ${room.spectators || 0} khán giả`
-                      : paused
-                        ? "Tạm dừng · chờ đối thủ kết nối lại (30 giây)"
-                        : myTurn
-                          ? "Đến lượt bạn. Nước đi tiếp theo là gì?"
-                          : isOnline
-                            ? "Đối thủ đang suy nghĩ…"
-                            : "Caro Bot đang suy nghĩ…"}
-                </span>
-                <span
-                  className={`timer ${isOnline && remaining <= 10 ? "urgent" : ""}`}
-                >
-                  <Icon name="clock" size={15} />
-                  {room.status === "finished"
-                    ? "Đã kết thúc"
-                    : room.status === "waiting"
-                      ? "Chờ đối thủ"
-                      : isOnline
-                        ? `${remaining}s`
-                        : "Không giới hạn"}
-                </span>
-              </div>
-
-              <div className="board-area">
-                <div className="board-coordinate-top">
-                  <span />
-                  {Array.from({ length: SIZE }, (_, i) => (
-                    <span key={i}>{String.fromCharCode(65 + i)}</span>
-                  ))}
-                </div>
-                <div className="board-with-labels">
-                  <div className="board-coordinate-side">
-                    {Array.from({ length: SIZE }, (_, i) => (
-                      <span key={i}>{i + 1}</span>
-                    ))}
-                  </div>
-                  <div
-                    className={`board ${canMove ? "playable" : ""}`}
-                    role="group"
-                    aria-label="Bàn cờ 15 hàng, 15 cột. Dùng phím mũi tên để di chuyển, Enter để đánh."
-                  >
-                    {room.board.map((stone, index) => (
-                      <button
-                        key={index}
-                        data-cell={index}
-                        tabIndex={index === (lastMove ?? 112) ? 0 : -1}
-                        aria-label={`${String.fromCharCode(65 + (index % SIZE))}${Math.floor(index / SIZE) + 1}${stone ? `: ${stone}` : ": trống"}`}
-                        aria-disabled={Boolean(stone) || !canMove}
-                        className={`cell ${stone ? "occupied" : ""} ${room.line.includes(index) ? "winning" : ""} ${lastMove === index ? "last-move" : ""} ${index === 112 && !room.moves.length ? "center-cell" : ""}`}
-                        onClick={() => move(index)}
-                        onKeyDown={(event) => boardKeyboard(event, index)}
-                      >
-                        {stone ? (
-                          <Mark symbol={stone} />
-                        ) : (
-                          <span
-                            className={`ghost ghost-${mySymbol.toLowerCase()}`}
-                          />
-                        )}
-                        {[48, 56, 112, 168, 176].includes(index) && !stone && (
-                          <span className="board-star" />
-                        )}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </div>
-
-              {room.status === "finished" && (
-                <div className="result-panel">
-                  <span className="result-icon">
-                    <Icon name="trophy" size={25} />
-                  </span>
-                  <div>
-                    <strong>{resultText}</strong>
-                    <p>{reasonText[room.reason || "five"]}</p>
-                  </div>
-                  {!isSpectator && <button
-                    className="button primary"
-                    disabled={isOnline && room.rematch.includes(me)}
-                    onClick={() =>
-                      isOnline ? send({ type: "rematch" }) : newPractice()
-                    }
-                  >
-                    <Icon name="undo" size={16} />
-                    {isOnline && room.rematch.includes(me)
-                      ? "Đợi đối thủ…"
-                      : "Chơi lại"}
-                  </button>}
-                  {isOnline && !isSpectator &&
-                    room.rematch.length > 0 &&
-                    !room.rematch.includes(me) && (
-                      <small>Đối thủ muốn chơi ván mới!</small>
-                    )}
-                </div>
-              )}
-
-              <div className="board-bottom">
-                <span>
-                  <span className="tiny-dot" />
-                  {room.moves.length.toString().padStart(2, "0")} nước đi
-                </span>
-                <span>
-                  15 × 15 <i /> 5 quân liên tiếp
-                </span>
-                <button
-                  className="icon-button"
-                  title={sound ? "Tắt âm thanh" : "Bật âm thanh"}
-                  aria-label={sound ? "Tắt âm thanh" : "Bật âm thanh"}
-                  onClick={() => setSound(!sound)}
-                >
-                  <Icon name={sound ? "volume" : "mute"} size={18} />
-                </button>
-              </div>
-              <div className="game-actions">
-                <button className="text-button" disabled={!room.moves.length || (isOnline && room.status !== "finished")} onClick={() => openReplay({ id: room.round, players: room.players, moves: room.moves, reason: room.reason })}>
-                  <Icon name="history" size={17} /> Xem lại ván
-                </button>
-                <button
-                  className="text-button"
-                  disabled={
-                    isOnline || !room.moves.length || room.status === "finished"
-                  }
-                  onClick={undo}
-                >
-                  <Icon name="undo" size={17} />
-                  Đi lại
-                </button>
-                <span className="action-note">
-                  {isOnline
-                    ? "Nước đi được xác nhận bởi server"
-                    : "Thử chiến thuật, tự tin hơn mỗi ván"}
-                </span>
-                <button
-                  className="text-button resign"
-                  disabled={room.status !== "playing" || isSpectator}
-                  onClick={() => setDialog("resign")}
-                >
-                  <Icon name="flag" size={17} />
-                  Đầu hàng
-                </button>
-              </div>
-            </section>
+            <GameCard
+              room={room}
+              isOnline={isOnline}
+              isSpectator={isSpectator}
+              me={me}
+              displayName={name}
+              paused={paused}
+              myTurn={myTurn}
+              canMove={canMove}
+              remaining={remaining}
+              mySymbol={mySymbol}
+              resultText={resultText}
+              reasonText={reasonText[room.reason || "five"]}
+              sound={sound}
+              onMove={move}
+              onBoardKeyDown={boardKeyboard}
+              onPlayAgain={() => isOnline ? send({ type: "rematch" }) : newPractice()}
+              onReplay={() => openReplay({ id: room.round, players: room.players, moves: room.moves, reason: room.reason })}
+              onUndo={undo}
+              onToggleSound={() => setSound(!sound)}
+              onResign={() => setDialog("resign")}
+            />
 
             <aside className="right-column">
               <section className="connect-card">

@@ -17,13 +17,12 @@ Yêu cầu **Node.js 22+**, **Java 21**, **Maven 3.9+** và **MongoDB**. Nếu c
 ```powershell
 cd source
 npm install
-npm run build
 npm start
 ```
 
 Mở **http://localhost:3000**. Dừng server bằng `Ctrl+C`.
 
-Khi phát triển, chạy `npm run dev` từ `source/`: Spring Boot ở cổng 3000 và Vite ở **http://localhost:5173**. `npm test` chạy kiểm thử Java cho luật cờ, quản lý phòng, ghép trận, khán giả và kết nối lại. MongoDB phải chạy trước khi khởi động server; kiểm thử Java không cần MongoDB.
+`npm start` tự kiểm tra TypeScript, build React rồi khởi động Spring Boot. Khi phát triển, chạy `npm run dev` từ `source/`: Spring Boot ở cổng 3000 và Vite ở **http://localhost:5173**. `npm test` chạy kiểm thử JavaScript cho bot/luật phía client và kiểm thử Java cho luật server, quản lý phòng, ghép trận, chat, timeout, khán giả, kết nối lại, auth và chính sách origin. Dùng `npm run check` để build và chạy toàn bộ kiểm thử trong một lệnh. MongoDB phải chạy trước khi khởi động server; kiểm thử không cần MongoDB.
 
 Mặc định server dùng `mongodb://localhost:27017/caro_network`. Để dùng MongoDB khác, đặt biến môi trường `MONGODB_URI` trước khi chạy. Không commit URI có mật khẩu. Nếu có lịch sử cũ trong `source/server/data/history.json`, đặt `LEGACY_HISTORY_FILE` thành đường dẫn tuyệt đối đến file đó để nhập vào MongoDB khi server khởi động.
 
@@ -89,7 +88,7 @@ React + TypeScript (Browser B) ──┘                       ├── RoomSer
 | Dữ liệu | RAM + MongoDB + browser storage | Phòng/chat trên RAM; tài khoản, phiên đăng nhập, hồ sơ và lịch sử online trong MongoDB; lịch sử đấu máy trên trình duyệt |
 | Kiểm thử | JUnit 5 | Luật cờ, quản lý phòng và giao thức sự kiện |
 
-Theo quyết định hiện tại của nhóm, backend dùng Spring Boot và dữ liệu bền vững dùng MongoDB. Mã Node.js cũ còn ở `source/server/*.mjs` làm tài liệu tham chiếu; lệnh chạy chính đã chuyển sang Java.
+Backend duy nhất dùng Spring Boot; dữ liệu bền vững dùng MongoDB. JavaScript trong `source/shared/` chỉ chứa luật và bot chạy phía client, kèm kiểm thử Node.js độc lập.
 
 ## HTTP và giao thức WebSocket
 
@@ -141,7 +140,14 @@ caro-network-project/
     │   ├── vite.config.ts
     │   └── src/
     │       ├── main.tsx
-    │       ├── App.tsx
+    │       ├── App.tsx          # Điều phối màn hình và trạng thái giao diện
+    │       ├── components/      # Bàn cờ và các primitive giao diện
+    │       ├── hooks/           # Vòng đời WebSocket/reconnect
+    │       ├── services/        # HTTP API (xác thực)
+    │       ├── game/            # Trạng thái ván luyện tập
+    │       ├── lib/             # Tiện ích browser storage
+    │       ├── styles/          # Core, responsive, feature và theme
+    │       ├── types.ts         # Model và giao thức client/server
     │       ├── InvitePanel.tsx   # QR và link mời LAN/Internet
     │       ├── ReplayPanel.tsx   # Phát lại từng nước
     │       ├── styles.css
@@ -154,7 +160,6 @@ caro-network-project/
     │   │   ├── MongoHistoryStore.java
     │   │   └── ...
     │   ├── src/test/java/com/caroclub/
-    │   ├── *.mjs                # Backend Node.js cũ, chỉ làm tham chiếu
     │   └── data/                # File JSON cũ; có thể nhập vào MongoDB
     └── shared/
         ├── game.mjs            # Luật cờ, bot

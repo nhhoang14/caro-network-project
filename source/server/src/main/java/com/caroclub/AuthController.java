@@ -25,26 +25,24 @@ public class AuthController {
     private final CaroSocketHandler sockets;
     private final String publicUrl;
     public AuthController(AuthService auth, CaroSocketHandler sockets, @Value("${caro.public-url:}") String publicUrl) {
-        this.auth = auth; this.sockets = sockets; this.publicUrl = publicUrl;
+        this.auth = auth;
+        this.sockets = sockets;
+        this.publicUrl = ConnectionPolicy.normalizePublicUrl(publicUrl);
     }
     public record Credentials(String username, String password) {}
     public record AuthState(AuthService.AccountView account) {}
 
-    private static String originOf(String value) {
-        try {
-            java.net.URI uri = java.net.URI.create(value);
-            if (!("http".equals(uri.getScheme()) || "https".equals(uri.getScheme())) || uri.getRawUserInfo() != null
-                    || uri.getRawQuery() != null || uri.getRawFragment() != null || uri.getPath() != null && !uri.getPath().isEmpty()) return null;
-            return uri.getScheme() + "://" + uri.getAuthority();
-        } catch (IllegalArgumentException e) { return null; }
-    }
     private void checkRequest(HttpServletRequest request, String requestedBy) {
         if (!"1".equals(requestedBy)) throw new AuthService.AuthError(403, "Yêu cầu không hợp lệ.");
         String origin = request.getHeader(HttpHeaders.ORIGIN);
         if (origin == null) return;
-        String normalized = originOf(origin);
         String host = request.getHeader(HttpHeaders.HOST);
-        if (normalized == null || !(normalized.equals(request.getScheme() + "://" + host) || normalized.equals(publicUrl)))
+        String normalized;
+        try { normalized = ConnectionPolicy.normalizePublicUrl(origin); }
+        catch (IllegalArgumentException error) { normalized = ""; }
+        if (normalized.isBlank()
+                || !(normalized.equals(request.getScheme() + "://" + host)
+                        || !publicUrl.isBlank() && normalized.equals(publicUrl)))
             throw new AuthService.AuthError(403, "Nguồn yêu cầu không được phép.");
     }
     private ResponseCookie cookie(String token, HttpServletRequest request) {
