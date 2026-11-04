@@ -484,8 +484,12 @@ public class RoomService {
         }
         for (Room room : new ArrayList<>(rooms.values())) {
             if ("playing".equals(room.status) && room.remaining == null && room.deadline != null && now() >= room.deadline) {
-                int loser = room.turn.equals("X") ? 0 : 1;
-                finish(room, room.players.get(1 - loser).id, "timeout", List.of());
+                if (room.moves.isEmpty()) {
+                    finish(room, null, "timeout", List.of());
+                } else {
+                    int loser = room.turn.equals("X") ? 0 : 1;
+                    finish(room, room.players.get(1 - loser).id, "timeout", List.of());
+                }
                 broadcast(room);
             }
         }

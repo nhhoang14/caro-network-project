@@ -132,7 +132,7 @@ class RoomServiceTest {
         assertEquals(300, latest(o, "room").path("room").path("messages").get(1).path("text").asText().length());
     }
 
-    @Test void timeoutFinishesTheGameForTheOtherPlayer() throws Exception {
+    @Test void timeoutWithNoMovesRulesAsDraw() throws Exception {
         Client x = connect(null), o = connect(null);
         send(x, "{\"type\":\"create\",\"name\":\"An\"}");
         String room = latest(x, "room").path("room").path("id").asText();
@@ -142,7 +142,21 @@ class RoomServiceTest {
         JsonNode finished = latest(o, "room").path("room");
         assertEquals("finished", finished.path("status").asText());
         assertEquals("timeout", finished.path("reason").asText());
-        assertEquals(o.user.id, finished.path("winner").asText());
+        assertTrue(finished.path("winner").isNull() || finished.path("winner").asText().isEmpty());
+    }
+
+    @Test void timeoutFinishesTheGameForTheOtherPlayerWhenMovesExist() throws Exception {
+        Client x = connect(null), o = connect(null);
+        send(x, "{\"type\":\"create\",\"name\":\"An\"}");
+        String room = latest(x, "room").path("room").path("id").asText();
+        send(o, "{\"type\":\"join\",\"name\":\"Binh\",\"roomId\":\"" + room + "\"}");
+        send(x, "{\"type\":\"move\",\"index\":112}");
+        clock.addAndGet(RoomService.TURN_MS + 1);
+        service.tick();
+        JsonNode finished = latest(o, "room").path("room");
+        assertEquals("finished", finished.path("status").asText());
+        assertEquals("timeout", finished.path("reason").asText());
+        assertEquals(x.user.id, finished.path("winner").asText());
     }
 
     @Test void rematchInvitationRequiresOpponentAcceptanceAndSwapsSides() throws Exception {

@@ -435,7 +435,9 @@ export default function App() {
   const resultText = isSpectator ? (room.winner ? `${room.players.find((p) => p.id === room.winner)?.name || "Người chơi"} chiến thắng!` : "Ván đấu hòa") :
     room.status === "finished"
       ? !room.winner
-        ? "Một ván hòa đầy cân sức!"
+        ? !room.moves.length && room.reason === "timeout"
+          ? "Ván cờ xử hòa (0 nước đi)"
+          : "Một ván hòa đầy cân sức!"
         : room.winner === me
           ? "Bạn đã chiến thắng!"
           : `${opponent?.name || "Đối thủ"} đã chiến thắng`
@@ -443,7 +445,9 @@ export default function App() {
   const reasonText: Record<string, string> = {
     five: "5 quân liên tiếp — một nước đi thật đẹp.",
     draw: "Bàn cờ đã kín. Hẹn nhau ở ván tiếp theo!",
-    timeout: "Ván đấu kết thúc do hết thời gian.",
+    timeout: !room.moves.length
+      ? "Hết thời gian khi chưa đánh bước nào. Xử hòa cho hai bên."
+      : "Ván đấu kết thúc do hết thời gian.",
     resign: "Ván đấu kết thúc do đầu hàng.",
     leave: "Đối thủ đã rời phòng hoặc mất kết nối quá 30 giây.",
   };
