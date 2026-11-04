@@ -21,11 +21,10 @@ import {
 } from "../../shared/game.mjs";
 
 export default function App() {
-  const [name, setName] = useState(() => loadStored("caro-name", ""));
-  const [local, setLocal] = useState<Room>(() => createPracticeRoom(name));
+  const [name, setName] = useState("Khách");
+  const [local, setLocal] = useState<Room>(() => createPracticeRoom("Khách"));
   const [account, setAccount] = useState<Account | null>(null);
   const [accountChecked, setAccountChecked] = useState(false);
-  const [guestNameReady, setGuestNameReady] = useState(false);
   const [playMode, setPlayMode] = useState<"practice" | "online">(() =>
     new URLSearchParams(location.search).has("room") ? "online" : "practice",
   );
@@ -52,9 +51,7 @@ export default function App() {
   const [dialog, setDialog] = useState<Dialog>(null);
   const [renameInput, setRenameInput] = useState("");
   const [sound, setSound] = useState(() => loadStored("caro-sound", false));
-  const [history, setHistory] = useState<HistoryItem[]>(() =>
-    loadStored("caro-history", []),
-  );
+  const [history, setHistory] = useState<HistoryItem[]>([]);
   const [now, setNow] = useState(Date.now());
   const audio = useRef<AudioContext | null>(null);
   const chatEnd = useRef<HTMLDivElement>(null);
@@ -101,7 +98,7 @@ export default function App() {
   const localGames = history.filter((h) => h.mode !== "Online");
   const wins = localGames.filter((h) => h.result === "Thắng").length;
   const myScore = leaderboard.find((score) => score.id === profileId);
-  const playerReady = Boolean(account) || guestNameReady;
+  const playerReady = Boolean(account);
 
   function notify(message: string) {
     setToast(message);
@@ -114,9 +111,25 @@ export default function App() {
           setAccount(current);
           setName(current.name);
           setLocal(createPracticeRoom(current.name));
+          try {
+            const saved = localStorage.getItem("caro-history-" + current.id);
+            if (saved) setHistory(JSON.parse(saved));
+          } catch {}
+        } else if (active) {
+          setAccount(null);
+          setName("Khách");
+          setLocal(createPracticeRoom("Khách"));
+          setHistory([]);
         }
       })
-      .catch(() => {})
+      .catch(() => {
+        if (active) {
+          setAccount(null);
+          setName("Khách");
+          setLocal(createPracticeRoom("Khách"));
+          setHistory([]);
+        }
+      })
       .finally(() => {
         if (active) setAccountChecked(true);
       });
@@ -131,9 +144,15 @@ export default function App() {
       const next = await authenticate(authMode, authUsername, authPassword);
       setAccount(next);
       setName(next.name);
-      setGuestNameReady(true);
       recorded.current.clear();
       setLocal(createPracticeRoom(next.name));
+      try {
+        const saved = localStorage.getItem("caro-history-" + next.id);
+        if (saved) setHistory(JSON.parse(saved));
+        else setHistory([]);
+      } catch {
+        setHistory([]);
+      }
       resetServerData();
       setAuthPassword("");
       setDialog(null);
@@ -154,15 +173,18 @@ export default function App() {
       if (isOnline) send({ type: "leave" });
       await endSession();
       setAccount(null);
-      setName("");
-      setGuestNameReady(false);
+      setName("Khách");
       recorded.current.clear();
-      setLocal(createPracticeRoom(""));
+      setLocal(createPracticeRoom("Khách"));
+      setHistory([]);
+      try {
+        localStorage.removeItem("caro-name");
+      } catch {}
       setPlayMode("practice");
       resetServerData(true);
       setDialog(null);
       reconnect();
-      notify("Đã đăng xuất và đặt lại bàn cờ. Hãy đặt tên để tiếp tục chơi.");
+      notify("Đã đăng xuất. Bạn đang ở chế độ Khách (chỉ đấu với máy).");
     } catch (error) {
       setAuthError(error instanceof Error ? error.message : "Không thể kết nối server.");
     } finally { setAuthBusy(false); }
@@ -199,8 +221,10 @@ export default function App() {
     return () => clearTimeout(timer);
   }, [toast]);
   useEffect(() => {
-    saveStored("caro-name", name);
-  }, [name]);
+    if (account) {
+      saveStored("caro-name", name);
+    }
+  }, [name, account]);
   useEffect(() => {
     saveStored("caro-sound", sound);
   }, [sound]);
@@ -234,7 +258,7 @@ export default function App() {
     recorded.current.add(id);
     const item = {
       id,
-      opponent: opponent?.name || "Đối thủ",
+      opponent: opponent?.name || (isOnline ? "Đối thủ" : "Caro Bot"),
       result: !room.winner ? "Hòa" : room.winner === me ? "Thắng" : "Thua",
       moves: room.moves.length,
       at: Date.now(),
@@ -244,7 +268,12 @@ export default function App() {
     };
     setHistory((current) => {
       const next = [item, ...current.filter((h) => h.id !== id)].slice(0, 30);
-      saveStored("caro-history", next);
+      // Khi là Khách (chưa đăng nhập): KHÔNG lưu vào database/storage, CHỈ lưu trên RAM
+      if (account) {
+        try {
+          localStorage.setItem("caro-history-" + account.id, JSON.stringify(next));
+        } catch {}
+      }
       return next;
     });
   }, [room.status, room.winner, room.reason]);
@@ -287,9 +316,11 @@ export default function App() {
     else setLocal((current) => applyLocalMove(current, index, "X", "you"));
   }
   function enterRoom(roomId?: string) {
-    if (!name.trim()) {
-      notify("Nhập tên của bạn ở thẻ Kết nối bạn bè nhé.");
-      document.getElementById("player-name")?.focus();
+    if (!account) {
+      notify("Vui lòng đăng nhập tài khoản để vào phòng online.");
+      setAuthMode("login");
+      setAuthError("");
+      setDialog("auth");
       return;
     }
     if (isOnline || matching) {
@@ -327,28 +358,35 @@ export default function App() {
     }
   }
   function chooseOnline() {
+    if (!account) {
+      notify("Vui lòng đăng nhập tài khoản để tham gia đấu online.");
+      setAuthMode("login");
+      setAuthError("");
+      setDialog("auth");
+      return;
+    }
     setPlayMode("online");
     setDialog(null);
   }
   function openRooms() {
-    setPlayMode("online");
-    setDialog(playerReady ? "rooms" : null);
-  }
-  function confirmGuestName(event: FormEvent) {
-    event.preventDefault();
-    const nextName = name.trim();
-    if (!nextName) {
-      notify("Hãy nhập tên để bắt đầu chơi.");
-      document.getElementById("online-guest-name")?.focus();
+    if (!account) {
+      notify("Vui lòng đăng nhập tài khoản để xem danh sách phòng.");
+      setAuthMode("login");
+      setAuthError("");
+      setDialog("auth");
       return;
     }
-    setName(nextName);
-    setGuestNameReady(true);
-    recorded.current.clear();
-    setLocal(createPracticeRoom(nextName));
+    setPlayMode("online");
+    setDialog("rooms");
   }
   function findMatch() {
-    if (!name.trim()) { notify("Nhập tên để tìm đối thủ."); document.getElementById("player-name")?.focus(); return; }
+    if (!account) {
+      notify("Vui lòng đăng nhập tài khoản để ghép đấu online.");
+      setAuthMode("login");
+      setAuthError("");
+      setDialog("auth");
+      return;
+    }
     if (isOnline) { notify("Hãy rời phòng hiện tại trước."); return; }
     if (send({ type: matching ? "cancelMatch" : "match", name: name.trim() })) {
       setPlayMode("online");
@@ -442,7 +480,23 @@ export default function App() {
             <Icon name="rooms" />
             <span className="nav-text">Phòng chơi</span><span className="count-badge">{rooms.length}</span>
           </button>
-          <button className={`nav-item ${dialog === "onlinePlayers" ? "active" : ""}`} onClick={() => setDialog("onlinePlayers")}><Icon name="users" /><span className="nav-text">Kỳ thủ online</span><span className="count-badge">{onlineUsers.length}</span></button>
+          <button
+            className={`nav-item ${dialog === "onlinePlayers" ? "active" : ""}`}
+            onClick={() => {
+              if (!account) {
+                notify("Vui lòng đăng nhập để xem danh sách kỳ thủ.");
+                setAuthMode("login");
+                setAuthError("");
+                setDialog("auth");
+                return;
+              }
+              setDialog("onlinePlayers");
+            }}
+          >
+            <Icon name="users" />
+            <span className="nav-text">Kỳ thủ online</span>
+            <span className="count-badge">{onlineUsers.length}</span>
+          </button>
           <button
             className={`nav-item ${dialog === "history" ? "active" : ""}`}
             onClick={() => setDialog("history")}
@@ -461,11 +515,24 @@ export default function App() {
             <span className="nav-text">Cách chơi</span>
           </button>
         </nav>
-        <div className="sidebar-bottom" style={{ cursor: "pointer" }} onClick={() => { setRenameInput(name); setDialog("rename"); }} title="Bấm để đổi tên hiển thị">
-          <div className="avatar">{(account?.name || name || "B").charAt(0).toUpperCase()}</div>
+        <div
+          className="sidebar-bottom"
+          style={{ cursor: "pointer" }}
+          onClick={() => {
+            if (!account) {
+              setAuthError("");
+              setDialog("auth");
+            } else {
+              setRenameInput(name);
+              setDialog("rename");
+            }
+          }}
+          title={account ? "Bấm để đổi tên hiển thị" : "Bấm để đăng nhập"}
+        >
+          <div className="avatar">{account ? account.name.charAt(0).toUpperCase() : "K"}</div>
           <div>
-            <strong>{account?.name || name || "Người chơi mới"} <Icon name="edit" size={12} /></strong>
-            <span>{account ? `@${account.username}` : "Đang chơi với tư cách khách"}</span>
+            <strong>{account ? account.name : "Khách"} {account && <Icon name="edit" size={12} />}</strong>
+            <span>{account ? `@${account.username}` : "Đang chơi với tư cách Khách"}</span>
           </div>
           <span className="green-dot" />
         </div>
@@ -534,36 +601,22 @@ export default function App() {
                 ? "Bạn đang ở phòng online. Chọn Đấu với máy để chuyển sang luyện tập."
                 : "Tạo phòng riêng, ghép trận hoặc nhập mã phòng để chơi cùng bạn bè."}</p>
         </section>
-        {playMode === "online" && playerReady && !isOnline && invitedRoom && (
+        {playMode === "online" && account && !isOnline && invitedRoom && (
             <section
               className="invitation-banner"
               aria-label="Lời mời vào phòng"
             >
               <div>
                 <strong>Bạn được mời vào phòng #{invitedRoom}</strong>
-                <p>Nhập tên để cùng bạn bè bắt đầu ván Caro.</p>
+                <p>Tham gia phòng với tài khoản <strong>{account.name}</strong> (@{account.username}).</p>
               </div>
-              <form
-                onSubmit={(event) => {
-                  event.preventDefault();
-                  enterRoom(invitedRoom);
-                }}
+              <button
+                className="button primary"
+                disabled={connection !== "online"}
+                onClick={() => enterRoom(invitedRoom)}
               >
-                <input
-                  aria-label="Tên để tham gia phòng được mời"
-                  placeholder="Tên của bạn"
-                  value={name}
-                  maxLength={24}
-                  onChange={(event) => setName(event.target.value)}
-                  autoComplete="nickname"
-                />
-                <button
-                  className="button primary"
-                  disabled={connection !== "online" || !name.trim()}
-                >
-                  Vào phòng
-                </button>
-              </form>
+                Vào phòng
+              </button>
             </section>
           )}
           <div className={`game-layout ${playMode === "practice" ? "practice-layout" : !isOnline ? "online-setup-layout" : "online-layout"}`}>
@@ -573,32 +626,20 @@ export default function App() {
                 <h2>Đang chuẩn bị bàn chơi…</h2>
                 <p>Chỉ một chút nữa thôi.</p>
               </section>
-            ) : !playerReady ? (
-              <section className="online-gate-card">
-                <span className="online-gate-kicker">BƯỚC ĐẦU TIÊN</span>
-                <span className="online-gate-icon"><Icon name={playMode === "practice" ? "bot" : "link"} size={28} /></span>
-                <h2>Đặt tên trước khi bắt đầu</h2>
-                <p>Tên này sẽ hiển thị trên bàn cờ và với đối thủ khi bạn chơi online. Bạn không cần tạo tài khoản.</p>
-                <form className="online-name-form" onSubmit={confirmGuestName}>
-                  <label htmlFor="online-guest-name">Tên của bạn</label>
-                  <div>
-                    <input
-                      id="online-guest-name"
-                      value={name}
-                      onChange={(event) => setName(event.target.value)}
-                      maxLength={24}
-                      placeholder="Bạn muốn được gọi là gì?"
-                      autoComplete="nickname"
-                      autoFocus
-                    />
-                    <button className="button primary" type="submit" disabled={!name.trim()}>
-                      {playMode === "practice" ? "Bắt đầu đấu với máy" : "Vào sảnh online"} <Icon name="arrow" size={17} />
-                    </button>
-                  </div>
-                </form>
-                <button className="online-login-link" type="button" onClick={() => { setAuthError(""); setDialog("auth"); }}>
-                  Đã có tài khoản? Đăng nhập
-                </button>
+            ) : playMode === "online" && !account ? (
+              <section className="online-gate-card" aria-label="Yêu cầu đăng nhập để đấu online">
+                <span className="online-gate-kicker">CHẾ ĐỘ ĐẤU ONLINE</span>
+                <span className="online-gate-icon"><Icon name="link" size={28} /></span>
+                <h2>Đăng nhập để đấu online</h2>
+                <p>Bạn đang ở chế độ Khách (chỉ được chơi với bot). Vui lòng đăng nhập tài khoản để tạo phòng, ghép trận hoặc thách đấu cùng các kỳ thủ khác.</p>
+                <div style={{ display: "flex", gap: "12px", justifyContent: "center", marginTop: "1.2rem", flexWrap: "wrap" }}>
+                  <button className="button primary" type="button" onClick={() => { setAuthMode("login"); setAuthError(""); setDialog("auth"); }}>
+                    <Icon name="user" size={17} /> Đăng nhập / Đăng ký
+                  </button>
+                  <button className="button secondary" type="button" onClick={() => choosePractice()}>
+                    <Icon name="bot" size={17} /> Chơi với bot
+                  </button>
+                </div>
               </section>
             ) : playMode === "practice" || isOnline ? <GameCard
               room={room}
@@ -700,19 +741,10 @@ export default function App() {
                   <br />
                   Vô vàn nước cờ thú vị.
                 </p>
-                <label className="field-label" htmlFor="player-name">
-                  Tên của bạn
-                </label>
-                <input
-                  id="player-name"
-                  className="name-input"
-                  maxLength={24}
-                  value={name}
-                  placeholder="Bạn muốn được gọi là gì?"
-                  onChange={(e) => setName(e.target.value)}
-                  disabled={isOnline}
-                  autoComplete="nickname"
-                />
+                <div style={{ margin: "10px 0" }}>
+                  <span className="field-label">Tài khoản</span>
+                  <div style={{ fontWeight: 600, fontSize: "1.05rem" }}>{account ? `${account.name} (@${account.username})` : name}</div>
+                </div>
                 {!isSpectator && <InvitePanel roomId={room.id} notify={notify} />}
                 {isSpectator && <div className="spectator-card"><Icon name="eye" size={23} /><strong>Chế độ khán giả</strong><span>Bạn đang theo dõi ván cờ trực tiếp. Nước đi và chat chỉ dành cho hai người chơi.</span></div>}
                 <button
@@ -724,7 +756,7 @@ export default function App() {
                 </button>
                 <div className="connect-footnote">
                   <Icon name="shield" size={13} />
-                  Không cần tài khoản · Chơi ngay
+                  {account ? `Tài khoản @${account.username}` : "Đang chơi online"}
                 </div>
               </section>
 
@@ -975,11 +1007,16 @@ export default function App() {
                 </form>
               </>
             ))}
-                        {dialog === "rename" && (
+            {dialog === "rename" && (
               <form onSubmit={(event) => {
                 event.preventDefault();
                 const trimmed = renameInput.trim();
                 if (!trimmed) return;
+                if (!account) {
+                  notify("Bạn cần đăng nhập để đổi tên hiển thị.");
+                  setDialog("auth");
+                  return;
+                }
                 send({ type: "rename", name: trimmed });
                 setName(trimmed);
                 try { localStorage.setItem("caro-name", trimmed); } catch {}
@@ -1054,7 +1091,9 @@ export default function App() {
             {dialog === "history" && (
               <>
                 <p className="modal-description">
-                  Ván online lưu trên server; ván đấu máy lưu trên trình duyệt.
+                  {account
+                    ? "Ván online lưu trên MongoDB; ván đấu máy lưu theo tài khoản."
+                    : "Chế độ Khách: Bạn đang luyện tập với bot, lịch sử chỉ lưu tạm trên RAM (mất khi tải lại trang). Hãy đăng nhập để lưu kết quả."}
                 </p>
                 {serverHistory.length || history.some((item) => item.mode !== "Online") ? (
                   <div className="history-list">

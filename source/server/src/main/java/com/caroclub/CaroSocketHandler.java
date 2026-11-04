@@ -75,6 +75,11 @@ public class CaroSocketHandler extends TextWebSocketHandler {
                 if (client.authToken != null && auth.fromToken(client.authToken) == null) {
                     close(client, new CloseStatus(4003, "Session expired")); return;
                 }
+                String type = data.path("type").asText("");
+                if (("create".equals(type) || "join".equals(type) || "match".equals(type) || "invite".equals(type)) && client.authToken == null) {
+                    send(client, Map.of("type", "error", "message", "Bạn cần đăng nhập tài khoản để tham gia đấu online."));
+                    return;
+                }
                 service.handle(client.connected.user(), data);
             }
         } catch (Exception e) {

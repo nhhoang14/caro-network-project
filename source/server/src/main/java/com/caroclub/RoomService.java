@@ -321,6 +321,7 @@ public class RoomService {
         if (type.equals("match")) {
             if (user.roomId != null) { error(user, "Hãy rời phòng hiện tại trước."); return; }
             String name = name(data);
+            if (name.isEmpty()) name = user.name;
             if (name.isEmpty()) { error(user, "Bạn hãy nhập tên trước khi tìm trận."); return; }
             user.name = name; history.rename(user.profile, name);
             if (queue.contains(user)) return;
@@ -347,6 +348,7 @@ public class RoomService {
         if (type.equals("create") || type.equals("join")) {
             if (user.roomId != null || queue.contains(user)) { error(user, "Hãy rời phòng hoặc hủy tìm trận trước."); return; }
             String name = name(data);
+            if (name.isEmpty()) name = user.name;
             if (name.isEmpty()) { error(user, "Bạn hãy nhập tên trước khi vào phòng."); return; }
             user.name = name; history.rename(user.profile, name);
             Room room;
