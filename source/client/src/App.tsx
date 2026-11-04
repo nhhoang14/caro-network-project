@@ -968,6 +968,7 @@ export default function App() {
             role="dialog"
             aria-modal="true"
             aria-labelledby="modal-title"
+            style={dialog === "leaderboard" ? { maxWidth: 840, width: "95vw" } : undefined}
           >
             <div className="modal-heading">
               <h2 id="modal-title">
@@ -1180,92 +1181,78 @@ export default function App() {
             )}
             {dialog === "leaderboard" && (
               <>
-                <p className="modal-description" style={{ fontSize: 13, lineHeight: 1.5 }}>
-                  Bảng xếp hạng hệ thống theo 4 tiêu chí quy định: <strong>1. Tổng điểm (Thắng: 1đ, Hòa: 0.5đ, Thua: 0đ)</strong> ↓ · <strong>2. TB điểm đối thủ</strong> ↓ · <strong>3. TB nước đi thắng</strong> ↑ · <strong>4. TB nước đi thua</strong> ↓.
+                <p className="modal-description" style={{ fontSize: 13, lineHeight: 1.5, marginBottom: 14 }}>
+                  Xếp hạng theo 4 tiêu chí: <strong>1. Tổng điểm (Thắng: 1đ, Hòa: 0.5đ, Thua: 0đ)</strong> ↓ · <strong>2. TB điểm đối thủ</strong> ↓ · <strong>3. TB nước đi thắng</strong> ↑ · <strong>4. TB nước đi thua</strong> ↓.
                 </p>
                 {leaderboard.length ? (
-                  <div className="leaderboard-list" style={{ maxHeight: 420, overflowY: "auto" }}>
-                    {leaderboard.map((sc, index) => {
-                      const isMe = sc.id === profileId;
-                      const totalScore = typeof sc.score === "number" ? sc.score : (sc.wins * 1.0 + sc.draws * 0.5);
-                      return (
-                        <div
-                          className="leaderboard-row"
-                          key={sc.id}
-                          style={{
-                            display: "flex",
-                            flexDirection: "column",
-                            gap: 6,
-                            padding: "12px 16px",
-                            borderRadius: 12,
-                            marginBottom: 8,
-                            background: isMe ? "#f0fdf4" : "var(--card-bg, #ffffff)",
-                            border: isMe ? "1px solid #86efac" : "1px solid var(--border-color, #e2e8f0)",
-                          }}
-                        >
-                          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                              <span
-                                className="leaderboard-rank"
-                                style={{
-                                  fontWeight: 700,
-                                  color: index === 0 ? "#eab308" : index === 1 ? "#94a3b8" : index === 2 ? "#b45309" : "#64748b",
-                                  fontSize: 16,
-                                }}
-                              >
-                                {String(index + 1).padStart(2, "0")}
-                              </span>
-                              <strong style={{ fontSize: 15 }}>
-                                {sc.name} {isMe ? " (Bạn)" : ""}
-                              </strong>
-                            </div>
-                            <span
+                  <div style={{ overflowX: "auto", maxHeight: 440, borderRadius: 12, border: "1px solid #e2e8f0" }}>
+                    <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13, textAlign: "left" }}>
+                      <thead>
+                        <tr style={{ background: "#f8fafc", borderBottom: "1.5px solid #e2e8f0", color: "#475569", position: "sticky", top: 0, zIndex: 2 }}>
+                          <th style={{ padding: "10px 12px", width: 50, textAlign: "center", fontWeight: 700 }}>#</th>
+                          <th style={{ padding: "10px 12px", fontWeight: 700 }}>Kỳ thủ</th>
+                          <th style={{ padding: "10px 12px", textAlign: "center", fontWeight: 700 }}>Tổng điểm</th>
+                          <th style={{ padding: "10px 12px", textAlign: "center", fontWeight: 700 }}>Thành tích (T-H-B)</th>
+                          <th style={{ padding: "10px 12px", textAlign: "center", fontWeight: 700 }}>TB điểm ĐT</th>
+                          <th style={{ padding: "10px 12px", textAlign: "center", fontWeight: 700 }}>TB nước thắng</th>
+                          <th style={{ padding: "10px 12px", textAlign: "center", fontWeight: 700 }}>TB nước thua</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {leaderboard.map((sc, index) => {
+                          const isMe = sc.id === profileId;
+                          const totalScore = typeof sc.score === "number" ? sc.score : (sc.wins * 1.0 + sc.draws * 0.5);
+                          const losses = sc.losses ?? (sc.played - sc.wins - sc.draws);
+                          const rankColor = index === 0 ? "#eab308" : index === 1 ? "#94a3b8" : index === 2 ? "#b45309" : "#64748b";
+
+                          return (
+                            <tr
+                              key={sc.id}
                               style={{
-                                backgroundColor: "#dbeafe",
-                                color: "#1d4ed8",
-                                padding: "4px 10px",
-                                borderRadius: 14,
-                                fontWeight: 700,
-                                fontSize: 14,
+                                borderBottom: "1px solid #f1f5f9",
+                                background: isMe ? "#f0fdf4" : index % 2 === 1 ? "#fafbfd" : "#ffffff",
+                                height: 42,
+                                transition: "background 0.15s ease",
                               }}
                             >
-                              {totalScore} điểm
-                            </span>
-                          </div>
-
-                          <div
-                            style={{
-                              display: "grid",
-                              gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))",
-                              gap: 6,
-                              fontSize: 12,
-                              color: "#475569",
-                              marginTop: 2,
-                              background: isMe ? "rgba(255,255,255,0.7)" : "#f8fafc",
-                              padding: "8px 10px",
-                              borderRadius: 8,
-                            }}
-                          >
-                            <div>
-                              <span style={{ color: "#64748b" }}>Thành tích: </span>
-                              <strong>{sc.wins}T · {sc.draws}H · {sc.losses ?? (sc.played - sc.wins - sc.draws)}B</strong> ({sc.played} ván)
-                            </div>
-                            <div>
-                              <span style={{ color: "#64748b" }}>TB điểm đối thủ: </span>
-                              <strong>{sc.avgOpponentScore ?? 0} đ</strong>
-                            </div>
-                            <div>
-                              <span style={{ color: "#64748b" }}>TB nước thắng: </span>
-                              <strong>{sc.avgWinMoves ? `${sc.avgWinMoves} nước` : "—"}</strong>
-                            </div>
-                            <div>
-                              <span style={{ color: "#64748b" }}>TB nước thua: </span>
-                              <strong>{sc.avgLossMoves ? `${sc.avgLossMoves} nước` : "—"}</strong>
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })}
+                              <td style={{ padding: "8px 12px", textAlign: "center", fontWeight: 700, color: rankColor }}>
+                                {String(index + 1).padStart(2, "0")}
+                              </td>
+                              <td style={{ padding: "8px 12px" }}>
+                                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                                  <strong style={{ color: "#1e293b", fontSize: 13.5 }}>{sc.name}</strong>
+                                  {isMe && (
+                                    <span style={{ fontSize: 10, background: "#dcfce7", color: "#15803d", padding: "1px 6px", borderRadius: 10, fontWeight: 700 }}>
+                                      BẠN
+                                    </span>
+                                  )}
+                                </div>
+                              </td>
+                              <td style={{ padding: "8px 12px", textAlign: "center" }}>
+                                <span style={{ background: "#dbeafe", color: "#1d4ed8", padding: "2px 8px", borderRadius: 12, fontWeight: 700, fontSize: 12.5 }}>
+                                  {totalScore} đ
+                                </span>
+                              </td>
+                              <td style={{ padding: "8px 12px", textAlign: "center", fontSize: 12 }}>
+                                <span style={{ color: "#16a34a", fontWeight: 600 }}>{sc.wins}T</span> ·{" "}
+                                <span style={{ color: "#d97706", fontWeight: 600 }}>{sc.draws}H</span> ·{" "}
+                                <span style={{ color: "#dc2626", fontWeight: 600 }}>{losses}B</span>{" "}
+                                <span style={{ color: "#94a3b8" }}>({sc.played})</span>
+                              </td>
+                              <td style={{ padding: "8px 12px", textAlign: "center", fontWeight: 600, color: "#334155" }}>
+                                {sc.avgOpponentScore ?? 0} đ
+                              </td>
+                              <td style={{ padding: "8px 12px", textAlign: "center", color: "#475569" }}>
+                                {sc.avgWinMoves ? `${sc.avgWinMoves}` : "—"}
+                              </td>
+                              <td style={{ padding: "8px 12px", textAlign: "center", color: "#475569" }}>
+                                {sc.avgLossMoves ? `${sc.avgLossMoves}` : "—"}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
                   </div>
                 ) : (
                   <div className="modal-empty">
