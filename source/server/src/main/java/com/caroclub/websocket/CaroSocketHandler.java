@@ -1,4 +1,7 @@
-package com.caroclub;
+package com.caroclub.websocket;
+
+import com.caroclub.service.AuthService;
+import com.caroclub.service.RoomService;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;

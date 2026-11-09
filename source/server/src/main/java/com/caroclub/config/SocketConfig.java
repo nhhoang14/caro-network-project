@@ -1,4 +1,7 @@
-package com.caroclub;
+package com.caroclub.config;
+
+import com.caroclub.util.ConnectionPolicy;
+import com.caroclub.websocket.CaroSocketHandler;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;

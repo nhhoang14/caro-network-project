@@ -1,4 +1,4 @@
-package com.caroclub;
+package com.caroclub.model;
 
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.index.Indexed;
@@ -17,3 +17,4 @@ public class Profile {
         this.name = name;
     }
 }
+

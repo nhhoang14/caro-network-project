@@ -1,6 +1,8 @@
 package com.caroclub;
 
 import static org.junit.jupiter.api.Assertions.*;
+
+import com.caroclub.service.GameRules;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;

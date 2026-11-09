@@ -1,4 +1,7 @@
-package com.caroclub;
+package com.caroclub.repository;
+
+import com.caroclub.model.MatchRecord;
+import com.caroclub.model.Profile;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;

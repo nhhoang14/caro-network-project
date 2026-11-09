@@ -12,7 +12,15 @@ export default defineConfig({
     host: "0.0.0.0",
     port: 3000,
     proxy: {
-      "/ws": { target: `ws://localhost:${backendPort}`, ws: true },
+      "/ws": {
+        target: `ws://localhost:${backendPort}`,
+        ws: true,
+        configure(proxy) {
+          proxy.on("proxyReqWs", (proxyReq, req) => {
+            if (req.headers.host) proxyReq.setHeader("host", req.headers.host);
+          });
+        },
+      },
       "/api": {
         target: `http://localhost:${backendPort}`,
         changeOrigin: false,

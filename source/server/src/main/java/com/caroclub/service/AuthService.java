@@ -1,4 +1,8 @@
-package com.caroclub;
+package com.caroclub.service;
+
+import com.caroclub.model.Account;
+import com.caroclub.model.AuthSession;
+import com.caroclub.model.Profile;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;

@@ -1,4 +1,4 @@
-package com.caroclub;
+package com.caroclub.service;
 
 import java.util.LinkedHashSet;
 import java.util.Set;

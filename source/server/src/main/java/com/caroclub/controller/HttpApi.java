@@ -1,4 +1,7 @@
-package com.caroclub;
+package com.caroclub.controller;
+
+import com.caroclub.service.RoomService;
+import com.caroclub.util.ConnectionPolicy;
 
 import java.net.NetworkInterface;
 import java.net.SocketException;
@@ -33,6 +36,9 @@ public class HttpApi {
         while (all.hasMoreElements()) interfaces.add(all.nextElement());
         interfaces.sort(Comparator.comparingInt(i -> ConnectionPolicy.interfacePriority(i.getName())));
         for (NetworkInterface net : interfaces) {
+            try {
+                if (!net.isUp() || net.isLoopback()) continue;
+            } catch (SocketException ignored) {}
             Enumeration<java.net.InetAddress> addresses = net.getInetAddresses();
             while (addresses.hasMoreElements()) {
                 java.net.InetAddress address = addresses.nextElement();

@@ -1,4 +1,4 @@
-package com.caroclub;
+package com.caroclub.util;
 
 import java.net.Inet4Address;
 import java.net.URI;
@@ -33,11 +33,40 @@ public final class ConnectionPolicy {
                     || url.getRawQuery() != null
                     || url.getRawFragment() != null
                     || url.getPath() != null && !url.getPath().isEmpty()) return false;
-            return url.getAuthority() != null && url.getAuthority().equalsIgnoreCase(host)
-                    || !publicUrl.isBlank() && origin.equals(publicUrl);
+            if (url.getAuthority() != null && url.getAuthority().equalsIgnoreCase(host)) return true;
+            if (!publicUrl.isBlank() && origin.equals(publicUrl)) return true;
+            if (isPrivateOrLoopback(url.getHost())) {
+                String hostName = host != null ? (host.contains(":") ? host.substring(0, host.indexOf(':')) : host) : "";
+                if (isPrivateOrLoopback(hostName)) return true;
+            }
+            return false;
         } catch (IllegalArgumentException error) {
             return false;
         }
+    }
+
+    public static boolean isPrivateOrLoopback(String hostName) {
+        if (hostName == null || hostName.isBlank()) return false;
+        if ("localhost".equalsIgnoreCase(hostName) || hostName.endsWith(".localhost")
+                || "[::1]".equals(hostName) || "::1".equals(hostName)) {
+            return true;
+        }
+        String[] parts = hostName.split("\\.");
+        if (parts.length == 4) {
+            try {
+                int first = Integer.parseInt(parts[0]);
+                int second = Integer.parseInt(parts[1]);
+                int third = Integer.parseInt(parts[2]);
+                int fourth = Integer.parseInt(parts[3]);
+                if (first < 0 || first > 255 || second < 0 || second > 255
+                        || third < 0 || third > 255 || fourth < 0 || fourth > 255) return false;
+                if (first == 127) return true;
+                return first == 10 || (first == 172 && second >= 16 && second <= 31) || (first == 192 && second == 168);
+            } catch (NumberFormatException ignored) {
+                return false;
+            }
+        }
+        return false;
     }
 
     public static boolean isPrivateIpv4(java.net.InetAddress address) {
@@ -55,3 +84,4 @@ public final class ConnectionPolicy {
         return 1;
     }
 }
+

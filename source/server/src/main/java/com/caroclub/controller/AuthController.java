@@ -1,4 +1,8 @@
-package com.caroclub;
+package com.caroclub.controller;
+
+import com.caroclub.service.AuthService;
+import com.caroclub.util.ConnectionPolicy;
+import com.caroclub.websocket.CaroSocketHandler;
 
 import jakarta.servlet.http.HttpServletRequest;
 import java.time.Duration;
@@ -37,12 +41,7 @@ public class AuthController {
         String origin = request.getHeader(HttpHeaders.ORIGIN);
         if (origin == null) return;
         String host = request.getHeader(HttpHeaders.HOST);
-        String normalized;
-        try { normalized = ConnectionPolicy.normalizePublicUrl(origin); }
-        catch (IllegalArgumentException error) { normalized = ""; }
-        if (normalized.isBlank()
-                || !(normalized.equals(request.getScheme() + "://" + host)
-                        || !publicUrl.isBlank() && normalized.equals(publicUrl)))
+        if (!ConnectionPolicy.allowedOrigin(origin, host, publicUrl))
             throw new AuthService.AuthError(403, "Nguồn yêu cầu không được phép.");
     }
     private ResponseCookie cookie(String token, HttpServletRequest request) {

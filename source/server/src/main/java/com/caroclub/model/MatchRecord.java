@@ -1,4 +1,4 @@
-package com.caroclub;
+package com.caroclub.model;
 
 import java.util.List;
 import org.springframework.data.annotation.Id;
@@ -28,3 +28,4 @@ public class MatchRecord {
     public record Player(String id, String name) {}
     public record Move(int index, String symbol) {}
 }
+

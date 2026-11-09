@@ -42,18 +42,40 @@ export default function InvitePanel({
         /* Current reachable origin remains usable without metadata. */
       }
       if (controller.signal.aborted) return;
+      const clientPort = location.port;
+      const clientProtocol = location.protocol;
+      const adjusted: Origin[] = found.map((item) => {
+        if (item.kind === "lan") {
+          try {
+            const parsed = new URL(item.url);
+            const portPart = clientPort ? `:${clientPort}` : (parsed.port ? `:${parsed.port}` : "");
+            const url = `${clientProtocol}//${parsed.hostname}${portPart}`;
+            return { ...item, url };
+          } catch {
+            return item;
+          }
+        }
+        return item;
+      });
       if (
         !isLoopback(location.hostname) &&
-        !found.some((item) => item.url === location.origin)
+        !adjusted.some((item) => item.url === location.origin)
       ) {
-        found.unshift({
+        adjusted.unshift({
           url: location.origin,
           label: "Địa chỉ đang mở",
           kind: isPrivate(location.hostname) ? "lan" : "public",
         });
       }
-      setOrigins(found);
-      setSelected(found[0]?.url || "");
+      const uniqueOrigins: Origin[] = [];
+      for (const item of adjusted) {
+        if (!uniqueOrigins.some((existing) => existing.url === item.url)) {
+          uniqueOrigins.push(item);
+        }
+      }
+      setOrigins(uniqueOrigins);
+      const defaultOrigin = uniqueOrigins.find((item) => item.url === location.origin) || uniqueOrigins[0];
+      setSelected(defaultOrigin?.url || "");
       setLoaded(true);
     }
     void load();

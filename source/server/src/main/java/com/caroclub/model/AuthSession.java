@@ -1,4 +1,4 @@
-package com.caroclub;
+package com.caroclub.model;
 
 import java.util.Date;
 import org.springframework.data.annotation.Id;
@@ -18,3 +18,4 @@ public class AuthSession {
         this.expiresAt = expiresAt;
     }
 }
+

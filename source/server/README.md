@@ -28,15 +28,33 @@ Nếu đã có `source/server/data/history.json`, nhập hồ sơ và ván cũ b
 
 ## Cấu trúc
 
-- `CaroSocketHandler`: `/ws`, xác nhận `hello`, giới hạn tốc độ, heartbeat.
-- `RoomService`: điều phối phòng, phiên, lượt chơi, chat, đồng hồ, khán giả và chơi lại.
-- `MatchmakingQueue`: hàng chờ và chính sách chọn đối thủ.
-- `RoomViewFactory`: ánh xạ trạng thái RAM sang payload WebSocket ổn định.
-- `ConnectionPolicy`: chuẩn hóa URL public, địa chỉ LAN và kiểm tra Origin.
-- `GameRules`: kiểm tra 5 quân liên tiếp. Bot luyện tập vẫn ở client.
-- `MongoHistoryStore`: collection `profiles` và `matches`, lịch sử 30 ván và bảng xếp hạng 20 người.
-- `HttpApi`: `/health` và `/api/connection`.
-- `AuthController`/`AuthService`: đăng ký, đăng nhập, đăng xuất; cookie phiên; tài khoản và phiên trong MongoDB.
+Cấu trúc package của server (`com.caroclub`):
+- `CaroApplication`: Điểm khởi chạy ứng dụng Spring Boot.
+- `controller/`:
+  - `AuthController`: REST API xác thực (`/api/auth/me`, `/register`, `/login`, `/logout`).
+  - `HttpApi`: REST API kiểm tra trạng thái (`/health`) và địa chỉ kết nối LAN/Internet (`/api/connection`).
+- `service/`:
+  - `AuthService`: Nghiệp vụ đăng ký, đăng nhập băm BCrypt, quản lý phiên.
+  - `RoomService`: Điều phối phòng chơi, ghép cặp, lượt đi, chat, đồng hồ, khán giả và chơi lại.
+  - `GameRules`: Kiểm tra điều kiện thắng cờ Caro (5 quân liên tiếp).
+  - `MatchmakingQueue`: Hàng chờ ghép trận tự động.
+  - `RoomViewFactory`: Ánh xạ trạng thái phòng trong RAM sang payload WebSocket.
+- `model/`:
+  - `Account`: Thực thể tài khoản người dùng (`accounts`).
+  - `AuthSession`: Phiên đăng nhập người dùng (`auth_sessions`).
+  - `Profile`: Hồ sơ người chơi (`profiles`).
+  - `MatchRecord`: Bản ghi ván đấu (`matches`).
+- `repository/`:
+  - `HistoryStore`: Interface trừu tượng hoá kho lưu trữ lịch sử và bảng xếp hạng.
+  - `MongoHistoryStore`: Lưu trữ và truy vấn MongoDB (với In-memory fallback).
+- `config/`:
+  - `SocketConfig`: Cấu hình WebSocket endpoint (`/ws`) và bắt tay kết nối.
+- `websocket/`:
+  - `CaroSocketHandler`: Bộ xử lý WebSocket, xác thực handshake, heartbeat, rate limiting.
+- `tcp/`:
+  - `TcpServer`: Socket Server thuần TCP chạy song song ở cổng 3001.
+- `util/`:
+  - `ConnectionPolicy`: Kiểm tra Origin an toàn, lọc IP mạng LAN và chuẩn hóa URL.
 
 Phòng, phiên chơi, hàng chờ và chat hiện hành giữ trong RAM; MongoDB lưu `accounts`, `auth_sessions`, `profiles`, `matches` gồm chuỗi nước đi. Mật khẩu băm BCrypt; cookie đăng nhập HttpOnly/SameSite=Lax có hạn 30 ngày, token phiên chỉ lưu dạng băm SHA-256 trong MongoDB. Khách vẫn dùng mã hồ sơ trong `sessionStorage`. Tài khoản mới có hồ sơ riêng nên lịch sử khách không tự nhập vào tài khoản. Mỗi ván có ID riêng nên kết quả không bị ghi hai lần.
 

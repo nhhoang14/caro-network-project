@@ -3,6 +3,10 @@ package com.caroclub;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
+import com.caroclub.controller.AuthController;
+import com.caroclub.service.AuthService;
+import com.caroclub.websocket.CaroSocketHandler;
+
 import org.junit.jupiter.api.Test;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.mock.web.MockHttpServletRequest;

@@ -1,5 +1,7 @@
-package com.caroclub;
+package com.caroclub.repository;
 
+import com.caroclub.model.MatchRecord;
+import com.caroclub.model.Profile;
 import java.util.List;
 import java.util.Map;
 
@@ -13,3 +15,4 @@ public interface HistoryStore {
     default Map<String, Double> allScores() { return Map.of(); }
     record ProfileSession(Profile profile, String token) {}
 }
+
