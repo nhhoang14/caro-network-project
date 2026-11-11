@@ -164,6 +164,72 @@ class RoomServiceTest {
         assertEquals(x.user.id, finished.path("winner").asText());
     }
 
+    @Test void drawOfferCanBeAcceptedAndRecordedAsDraw() throws Exception {
+        Client x = connect(null), o = connect(null);
+        send(x, "{\"type\":\"create\",\"name\":\"An\"}");
+        String room = latest(x, "room").path("room").path("id").asText();
+        send(o, "{\"type\":\"join\",\"name\":\"Binh\",\"roomId\":\"" + room + "\"}");
+
+        send(x, "{\"type\":\"drawOffer\"}");
+
+        assertEquals("An", latest(o, "drawOfferReceived").path("fromName").asText());
+        assertEquals(x.user.id, latest(o, "room").path("room").path("drawOfferedBy").asText());
+        assertTrue(latest(x, "notice").path("message").asText().contains("Đã gửi"));
+
+        send(o, "{\"type\":\"drawResponse\",\"accept\":true}");
+
+        JsonNode finished = latest(x, "room").path("room");
+        assertEquals("finished", finished.path("status").asText());
+        assertEquals("agreement", finished.path("reason").asText());
+        assertTrue(finished.path("winner").isNull());
+        assertEquals(1, history.matches.size());
+        assertNull(history.matches.getFirst().winner);
+    }
+
+    @Test void pendingDrawOfferCannotBeOverwrittenAndRepeatedOffersAreRateLimited() throws Exception {
+        Client x = connect(null), o = connect(null);
+        send(x, "{\"type\":\"create\",\"name\":\"An\"}");
+        String room = latest(x, "room").path("room").path("id").asText();
+        send(o, "{\"type\":\"join\",\"name\":\"Binh\",\"roomId\":\"" + room + "\"}");
+
+        send(x, "{\"type\":\"drawOffer\"}");
+        send(o, "{\"type\":\"drawOffer\"}");
+
+        assertTrue(latest(o, "error").path("message").asText().contains("Đối thủ đang đề nghị hòa"));
+        assertEquals(x.user.id, latest(o, "room").path("room").path("drawOfferedBy").asText());
+
+        send(o, "{\"type\":\"drawResponse\",\"accept\":false}");
+        assertTrue(latest(x, "room").path("room").path("drawOfferedBy").isNull());
+        assertTrue(latest(x, "notice").path("message").asText().contains("từ chối"));
+
+        send(x, "{\"type\":\"drawOffer\"}");
+        assertTrue(latest(x, "error").path("message").asText().contains("Vui lòng chờ"));
+
+        clock.addAndGet(RoomService.DRAW_OFFER_COOLDOWN_MS);
+        send(x, "{\"type\":\"drawOffer\"}");
+        assertEquals(x.user.id, latest(o, "room").path("room").path("drawOfferedBy").asText());
+    }
+
+    @Test void drawOfferRequiresOnlineOpponentAndIsCancelledByContinuingPlay() throws Exception {
+        Client x = connect(null), o = connect(null);
+        send(x, "{\"type\":\"create\",\"name\":\"An\"}");
+        String room = latest(x, "room").path("room").path("id").asText();
+        send(o, "{\"type\":\"join\",\"name\":\"Binh\",\"roomId\":\"" + room + "\"}");
+
+        service.disconnect(o.user, o.connectionId);
+        send(x, "{\"type\":\"drawOffer\"}");
+        assertTrue(latest(x, "error").path("message").asText().contains("mất kết nối"));
+        assertTrue(latest(x, "room").path("room").path("drawOfferedBy").isNull());
+
+        Client rejoined = connect(latest(o, "welcome").path("token").asText());
+        send(x, "{\"type\":\"drawOffer\"}");
+        assertEquals("An", latest(rejoined, "drawOfferReceived").path("fromName").asText());
+
+        send(x, "{\"type\":\"move\",\"index\":112}");
+        assertTrue(latest(rejoined, "room").path("room").path("drawOfferedBy").isNull());
+        assertTrue(latest(x, "notice").path("message").asText().contains("đã được hủy"));
+    }
+
     @Test void rematchInvitationRequiresOpponentAcceptanceAndSwapsSides() throws Exception {
         Client x = connect(null), o = connect(null);
         send(x, "{\"type\":\"create\",\"name\":\"An\"}");

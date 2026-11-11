@@ -27,6 +27,7 @@ export function useCaroSocket(onError: (message: string) => void) {
   const [invitation, setInvitation] = useState<Invitation | null>(null);
   const [drawOfferFrom, setDrawOfferFrom] = useState<string | null>(null);
   const socket = useRef<WebSocket | null>(null);
+  const userIdRef = useRef("");
   const errorHandler = useRef(onError);
 
   useEffect(() => {
@@ -92,6 +93,7 @@ export function useCaroSocket(onError: (message: string) => void) {
           } catch {
             // Storage can be unavailable in hardened browsers.
           }
+          userIdRef.current = data.id;
           setUserId(data.id);
           setProfileId(data.profileId || "");
           setConnection("online");
@@ -104,7 +106,13 @@ export function useCaroSocket(onError: (message: string) => void) {
           if (data.users) setOnlineUsers(data.users);
         } else if (data.type === "room") {
           setOnlineRoom(data.room);
-          if (!data.room.drawOfferedBy) setDrawOfferFrom(null);
+          const offererId = data.room.drawOfferedBy;
+          if (offererId && offererId !== userIdRef.current) {
+            const offerer = data.room.players.find((player) => player.id === offererId);
+            setDrawOfferFrom(offerer?.name || "Đối thủ");
+          } else {
+            setDrawOfferFrom(null);
+          }
         } else if (data.type === "left") {
           setOnlineRoom(null);
           setDrawOfferFrom(null);
