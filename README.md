@@ -48,7 +48,7 @@ npm start
 
 ### Tài khoản người chơi
 
-Bấm **Đăng nhập** trên thanh trên cùng, chọn **Tạo tài khoản** và nhập tên tài khoản/mật khẩu. Sau khi đăng nhập, ván online lưu theo hồ sơ tài khoản trong MongoDB; đăng nhập lại trên thiết bị khác sẽ xem được lịch sử đó. Nút tài khoản cũng có thao tác **Đăng xuất**. Người chơi vẫn có thể vào phòng với tư cách khách; lịch sử khách trước khi đăng ký không tự chuyển sang tài khoản mới. Dự án chưa có đặt lại mật khẩu.
+Bấm **Đăng nhập** trên thanh trên cùng, chọn **Tạo tài khoản** và nhập tên tài khoản/mật khẩu. Sau khi đăng nhập, ván online lưu theo hồ sơ tài khoản trong MongoDB; đăng nhập lại trên thiết bị khác sẽ xem được lịch sử đó. Nút tài khoản cũng có thao tác **Đăng xuất**. Khách chỉ có thể đấu với máy; tạo phòng, tham gia, xem trực tiếp, ghép trận và thách đấu online đều yêu cầu đăng nhập. Dự án chưa có đặt lại mật khẩu.
 
 Đấu qua LAN: máy chủ chạy server; hai máy cùng mạng mở `http://<IPv4-may-chu>:3000`. Xem IPv4 bằng `ipconfig`. QR và link mời tự chọn IPv4 LAN kể cả khi máy chủ mở trang bằng localhost. Nếu Windows hỏi tường lửa, chủ máy cần cho phép Java trên mạng riêng đang dùng.
 
@@ -66,7 +66,7 @@ Bấm **Đăng nhập** trên thanh trên cùng, chọn **Tạo tài khoản** v
 - Phát lại từng nước cờ của ván hiện tại, lịch sử online hoặc ván đấu máy mới hoàn tất.
 - Khán giả xem trực tiếp phòng đang chơi; không được đánh cờ, chat, đầu hàng hoặc yêu cầu chơi lại.
 - Ghép trận tự động với hàng chờ và nút hủy.
-- Đăng ký, đăng nhập và đăng xuất bằng tên tài khoản/mật khẩu. Tài khoản, phiên đăng nhập, lịch sử online và bảng xếp hạng lưu trong MongoDB (tối đa 5.000 trận); khách vẫn có thể chơi không cần tài khoản.
+- Đăng ký, đăng nhập và đăng xuất bằng tên tài khoản/mật khẩu. Tài khoản, phiên đăng nhập, lịch sử online và bảng xếp hạng lưu trong MongoDB (tối đa 5.000 trận); khách có thể đấu với máy mà không cần tài khoản.
 
 **Luật demo:** từ 5 quân liên tiếp theo ngang/dọc/chéo là thắng, kể cả bị chặn cả hai đầu. Bàn kín không có người thắng thì hòa. Đấu máy không giới hạn giờ; online hết giờ, đầu hàng hoặc rời phòng trong khi chơi sẽ thua.
 
@@ -119,7 +119,7 @@ Client mở `/ws`, gửi `hello` trước hành động khác. Token phiên chơ
 | Rời phòng | `{ "type": "leave" }` |
 | Làm mới thống kê | `{ "type": "stats" }` |
 
-Chỉ số ô 0–224, bằng `row * 15 + column` (hàng/cột từ 0). Khách có thể gửi `profileToken` trong `hello`; người đăng nhập dùng cookie. Server gửi `welcome` (id, token phiên, profileId, profileToken nếu là khách, giờ server), `lobby` (các phòng gồm trạng thái/số khán giả, số phiên online, số người chờ ghép), `matchmaking`, `stats` (30 trận online gần nhất của hồ sơ và 20 vị trí bảng xếp hạng), `room` (snapshot bàn cờ, người chơi, khán giả, lượt, deadline, chat, kết quả), `left`, `error`. Mỗi nước hợp lệ tạo một snapshot gửi người chơi và khán giả. Chat cũng gửi snapshot đầy đủ để giữ giao thức đơn giản cho demo.
+Chỉ số ô 0–224, bằng `row * 15 + column` (hàng/cột từ 0). Khách có thể gửi `profileToken` trong `hello`; người đăng nhập dùng cookie. Với WebSocket của ứng dụng web, các lệnh vào chế độ online bị từ chối nếu phiên chưa đăng nhập. Server gửi `welcome` (id, token phiên, profileId, profileToken nếu là khách, giờ server), `lobby` (các phòng đang chờ hoặc đang đấu gồm trạng thái/số khán giả, số phiên online, số người chờ ghép), `matchmaking`, `stats` (30 trận online gần nhất của hồ sơ và 20 vị trí bảng xếp hạng), `room` (snapshot bàn cờ, người chơi, khán giả, lượt, deadline, chat, kết quả), `left`, `error`. Mỗi nước hợp lệ tạo một snapshot gửi người chơi và khán giả. Chat cũng gửi snapshot đầy đủ để giữ giao thức đơn giản cho demo.
 
 ## Cấu trúc
 
@@ -169,7 +169,7 @@ caro-network-project/
 ## Giới hạn demo
 
 - Phòng, phiên và chat lưu RAM, mất khi khởi động lại server. Tối đa 100 phòng và 1.000 phiên; lịch sử online và hồ sơ lưu MongoDB, tối đa 5.000 trận gần nhất.
-- Tài khoản dùng tên người dùng 3–24 ký tự và mật khẩu ít nhất 8 ký tự; mật khẩu được băm BCrypt. Phiên đăng nhập lưu MongoDB và cấp cookie HttpOnly, SameSite=Lax, hết hạn sau 30 ngày. Người chơi khách vẫn nhận diện bằng mã của từng tab; xóa `sessionStorage` có thể làm mất quyền xem lịch sử khách. Thành tích khách trước khi đăng ký không tự chuyển vào tài khoản.
+- Tài khoản dùng tên người dùng 3–24 ký tự và mật khẩu ít nhất 8 ký tự; mật khẩu được băm BCrypt. Phiên đăng nhập lưu MongoDB và cấp cookie HttpOnly, SameSite=Lax, hết hạn sau 30 ngày. Chế độ đấu online yêu cầu tài khoản; khách chỉ đấu với máy và dữ liệu luyện tập nằm trên trình duyệt.
 - Lịch sử đấu máy lưu trên trình duyệt, có thể mất khi xóa dữ liệu. Luyện tập không được server xác nhận. Các mục lịch sử cũ trước bản nâng cấp không có chuỗi nước đi để phát lại.
 - Một phiên chỉ có một kết nối. Tab nhân bản có thể dùng chung token; mở tab độc lập/trình duyệt khác để demo hai người.
 - Server giới hạn payload 8 KB, tốc độ gói tin/chat và kiểm tra Origin cùng host cho trình duyệt. Đăng nhập qua Internet cần HTTPS/WSS; HTTP trên LAN không mã hóa mật khẩu khi truyền. Endpoint tài khoản yêu cầu JSON, header `X-Caro-Request: 1` và Origin hợp lệ.

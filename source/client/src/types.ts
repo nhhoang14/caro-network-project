@@ -34,7 +34,7 @@ export type LobbyRoom = {
   id: string;
   host: string;
   count: number;
-  status: string;
+  status: "waiting" | "playing";
   spectators: number;
 };
 

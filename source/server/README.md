@@ -56,7 +56,7 @@ Cấu trúc package của server (`com.caroclub`):
 - `util/`:
   - `ConnectionPolicy`: Kiểm tra Origin an toàn, lọc IP mạng LAN và chuẩn hóa URL.
 
-Phòng, phiên chơi, hàng chờ và chat hiện hành giữ trong RAM; MongoDB lưu `accounts`, `auth_sessions`, `profiles`, `matches` gồm chuỗi nước đi. Mật khẩu băm BCrypt; cookie đăng nhập HttpOnly/SameSite=Lax có hạn 30 ngày, token phiên chỉ lưu dạng băm SHA-256 trong MongoDB. Khách vẫn dùng mã hồ sơ trong `sessionStorage`. Tài khoản mới có hồ sơ riêng nên lịch sử khách không tự nhập vào tài khoản. Mỗi ván có ID riêng nên kết quả không bị ghi hai lần.
+Phòng, phiên chơi, hàng chờ và chat hiện hành giữ trong RAM; MongoDB lưu `accounts`, `auth_sessions`, `profiles`, `matches` gồm chuỗi nước đi. Mật khẩu băm BCrypt; cookie đăng nhập HttpOnly/SameSite=Lax có hạn 30 ngày, token phiên chỉ lưu dạng băm SHA-256 trong MongoDB. WebSocket của ứng dụng web yêu cầu tài khoản cho các lệnh tạo/tham gia/xem phòng, ghép trận và thách đấu; TCP client vẫn là kênh demo giao thức riêng. Mỗi ván có ID riêng nên kết quả không bị ghi hai lần.
 
 API tài khoản: `GET /api/auth/me`, `POST /api/auth/register`, `POST /api/auth/login`, `POST /api/auth/logout`. Các lệnh POST cần `X-Caro-Request: 1`, Origin cùng trang và JSON cho đăng ký/đăng nhập. Khi đăng nhập, WebSocket dùng hồ sơ tài khoản theo cookie; đăng xuất thu hồi phiên và đóng WebSocket tương ứng. Triển khai công khai phải dùng HTTPS/WSS; HTTP trên LAN không mã hóa mật khẩu khi truyền.
 

@@ -169,7 +169,10 @@ public class RoomService {
     }
 
     private void lobby() {
-        List<Map<String, Object>> list = rooms.values().stream().filter(r -> !r.players.isEmpty())
+        List<Map<String, Object>> list = rooms.values().stream()
+                .filter(r -> !r.players.isEmpty())
+                .filter(r -> !"finished".equals(r.status))
+                .filter(r -> !"waiting".equals(r.status) || r.players.stream().allMatch(p -> p.online))
                 .map(RoomViewFactory::lobbyRoom).toList();
         long online = sessions.values().stream().filter(p -> p.online).count();
         Map<String, Double> allScores = history.allScores();
@@ -474,6 +477,10 @@ public class RoomService {
                 error(user, "Không tìm thấy phòng để xem.");
                 return;
             }
+            if ("finished".equals(room.status)) {
+                error(user, "Ván đấu đã kết thúc và không còn phát trực tiếp.");
+                return;
+            }
             user.roomId = room.id;
             user.role = "spectator";
             room.spectators.add(user);
@@ -510,6 +517,10 @@ public class RoomService {
                 }
                 if (room.players.size() >= 2 || !room.status.equals("waiting")) {
                     error(user, "Phòng đã đủ người hoặc đã bắt đầu.");
+                    return;
+                }
+                if (room.players.stream().anyMatch(p -> !p.online)) {
+                    error(user, "Chủ phòng đang mất kết nối. Vui lòng chọn phòng khác.");
                     return;
                 }
                 if (room.players.getFirst().profile.profile().id.equals(user.profile.profile().id)) {
@@ -573,6 +584,8 @@ public class RoomService {
                 room.deadline = now() + TURN_MS;
             }
             broadcast(room);
+            if ("finished".equals(room.status))
+                lobby();
             if (cancelledDrawRequester != null) {
                 room.players.stream().filter(p -> p.id.equals(cancelledDrawRequester)).findFirst()
                         .ifPresent(p -> send(p, map("type", "notice", "message",
@@ -644,6 +657,7 @@ public class RoomService {
                 return;
             }
             broadcast(room);
+            lobby();
         } else if (type.equals("resign")) {
             if (!"playing".equals(room.status))
                 return;
@@ -651,6 +665,7 @@ public class RoomService {
                     .orElse(null);
             finish(room, other, "resign", List.of());
             broadcast(room);
+            lobby();
         } else if (type.equals("rematchDecline")) {
             if (!"finished".equals(room.status))
                 return;
@@ -677,6 +692,8 @@ public class RoomService {
                 reset(room);
             }
             broadcast(room);
+            if ("playing".equals(room.status))
+                lobby();
         }
     }
 
@@ -717,6 +734,7 @@ public class RoomService {
                     finish(room, room.players.get(1 - loser).id, "timeout", List.of());
                 }
                 broadcast(room);
+                lobby();
             }
         }
     }

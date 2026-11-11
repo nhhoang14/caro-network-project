@@ -56,6 +56,7 @@ export default function App() {
   const audio = useRef<AudioContext | null>(null);
   const chatEnd = useRef<HTMLDivElement>(null);
   const recorded = useRef(new Set<string>());
+  const roomEntryPending = useRef(false);
   const {
     onlineRoom,
     userId,
@@ -77,6 +78,14 @@ export default function App() {
     reconnect,
     resetServerData,
   } = useCaroSocket(setToast);
+
+  useEffect(() => {
+    if (roomEntryPending.current && onlineRoom) {
+      roomEntryPending.current = false;
+      setDialog(null);
+    }
+  }, [onlineRoom]);
+
   const room = onlineRoom || local;
   const isOnline = Boolean(onlineRoom);
   const me = isOnline ? userId : "you";
@@ -336,8 +345,8 @@ export default function App() {
       ? { type: "create" as const, name: name.trim() }
       : { type: "join" as const, name: name.trim(), roomId };
     if (send(command)) {
+      roomEntryPending.current = true;
       setPlayMode("online");
-      setDialog(null);
     }
   }
   function newPractice() {
@@ -1128,12 +1137,12 @@ export default function App() {
                         <div>
                           <strong>Phòng của {item.host}</strong>
                           <small>
-                            #{item.id} · {item.count}/2 người chơi · {item.spectators || 0} đang xem
+                            #{item.id} · {item.status === "waiting" ? "Đang chờ" : "Đang đấu"} · {item.count}/2 người chơi · {item.spectators || 0} đang xem
                           </small>
                         </div>
                         <div className="room-row-actions">
                           {item.status === "waiting" && <button className="button primary" disabled={isOnline || matching || connection !== "online"} onClick={() => enterRoom(item.id)}>Tham gia</button>}
-                          <button className="button secondary" disabled={isOnline || matching || connection !== "online"} onClick={() => { if (send({ type: "spectate", roomId: item.id })) setDialog(null); }}><Icon name="eye" size={16} /> Xem</button>
+                          <button className="button secondary" disabled={isOnline || matching || connection !== "online"} onClick={() => { if (send({ type: "spectate", roomId: item.id })) roomEntryPending.current = true; }}><Icon name="eye" size={16} /> Xem</button>
                         </div>
                       </div>
                     ))}
