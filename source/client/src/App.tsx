@@ -832,63 +832,13 @@ export default function App() {
                   </button>
                 </form>
               </section>
-
-              <button className="rules-link" onClick={() => setDialog("rules")}>
-                <span className="rules-link-icon">
-                  <Icon name="book" size={20} />
-                </span>
-                <span>
-                  <strong>Lần đầu chơi Caro?</strong>
-                  <small>30 giây để nắm luật chơi</small>
-                </span>
-                <Icon name="arrow" size={17} />
-              </button>
             </aside>}
           </div>
 
-          <section className="below-grid">
-            <div className="community-status">
-              <span className="online-avatars">
-                <span>N</span>
-                <span>T</span>
-                <span>Q</span>
-              </span>
-              <div>
-                <strong>{onlineCount} người đang kết nối</strong>
-                <p>Một cộng đồng nhỏ, những ván cờ vui.</p>
-              </div>
-              <span className="green-dot" />
-            </div>
-            <div className="personal-stat">
-              <span className="stat-icon">
-                <Icon name="trophy" size={21} />
-              </span>
-              <strong>
-                {myScore ? (typeof myScore.score === "number" ? myScore.score : (myScore.wins * 1.0 + myScore.draws * 0.5)) : 0} đ
-                <small>Điểm online</small>
-              </strong>
-              <span className="stat-divider" />
-              <strong>
-                {myScore?.wins ?? 0} thắng
-                <small>{myScore?.played ?? 0} trận ({myScore?.draws ?? 0} hòa)</small>
-              </strong>
-              <button
-                className="icon-button"
-                aria-label="Xem lịch sử đấu"
-                onClick={() => setDialog("history")}
-              >
-                <Icon name="arrow" size={18} />
-              </button>
-            </div>
-          </section>
           <footer>
             <span>
               <span className="footer-brand">caroclub</span> Một chút chiến
               thuật. Một chút kết nối.
-            </span>
-            <span>
-              Lập trình mạng <span className="footer-dot">·</span> Nhóm 09{" "}
-              <span className="footer-dot">·</span> HTTP + WebSocket
             </span>
           </footer>
         </main>
