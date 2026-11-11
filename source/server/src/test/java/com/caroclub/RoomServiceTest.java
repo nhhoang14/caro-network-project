@@ -289,4 +289,31 @@ class RoomServiceTest {
         assertEquals("Challenged", room.path("players").get(0).path("name").asText());
         assertEquals("Challenger", room.path("players").get(1).path("name").asText());
     }
+
+    @Test void lobbyHidesFinishedRoomsAndRejectsSpectatingThem() throws Exception {
+        Client x = connect(null), o = connect(null), viewer = connect(null);
+        send(x, "{\"type\":\"create\",\"name\":\"An\"}");
+        String roomId = latest(x, "room").path("room").path("id").asText();
+        assertEquals("waiting", latest(viewer, "lobby").path("rooms").get(0).path("status").asText());
+        send(o, "{\"type\":\"join\",\"name\":\"Binh\",\"roomId\":\"" + roomId + "\"}");
+        assertEquals("playing", latest(viewer, "lobby").path("rooms").get(0).path("status").asText());
+
+        send(x, "{\"type\":\"resign\"}");
+
+        assertEquals(0, latest(viewer, "lobby").path("rooms").size());
+        send(viewer, "{\"type\":\"spectate\",\"roomId\":\"" + roomId + "\"}");
+        assertTrue(latest(viewer, "error").path("message").asText().contains("đã kết thúc"));
+    }
+
+    @Test void disconnectedWaitingHostIsHiddenAndCannotBeJoined() throws Exception {
+        Client host = connect(null), challenger = connect(null), viewer = connect(null);
+        send(host, "{\"type\":\"create\",\"name\":\"Host\"}");
+        String roomId = latest(host, "room").path("room").path("id").asText();
+
+        service.disconnect(host.user, host.connectionId);
+
+        assertEquals(0, latest(viewer, "lobby").path("rooms").size());
+        send(challenger, "{\"type\":\"join\",\"name\":\"Challenger\",\"roomId\":\"" + roomId + "\"}");
+        assertTrue(latest(challenger, "error").path("message").asText().contains("mất kết nối"));
+    }
 }

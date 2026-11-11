@@ -79,7 +79,7 @@ public class CaroSocketHandler extends TextWebSocketHandler {
                     close(client, new CloseStatus(4003, "Session expired")); return;
                 }
                 String type = data.path("type").asText("");
-                if (("create".equals(type) || "join".equals(type) || "match".equals(type) || "invite".equals(type)) && client.authToken == null) {
+                if (requiresAccount(type) && client.authToken == null) {
                     send(client, Map.of("type", "error", "message", "Bạn cần đăng nhập tài khoản để tham gia đấu online."));
                     return;
                 }
@@ -118,6 +118,11 @@ public class CaroSocketHandler extends TextWebSocketHandler {
         if (token == null) return;
         for (Client client : clients.values())
             if (token.equals(client.authToken)) close(client, new CloseStatus(4003, "Logged out"));
+    }
+    static boolean requiresAccount(String type) {
+        return "create".equals(type) || "join".equals(type) || "match".equals(type)
+                || "cancelMatch".equals(type) || "invite".equals(type) || "inviteResponse".equals(type)
+                || "spectate".equals(type);
     }
     @Scheduled(fixedDelay = 1000)
     public void requireHello() {
