@@ -649,7 +649,7 @@ export default function App() {
               onUndo={undo}
               onToggleSound={() => setSound(!sound)}
               onResign={() => setDialog("resign")}
-              onDrawOffer={() => { send({ type: "drawOffer" }); notify("Đã gửi đề nghị hòa đến đối thủ."); }}
+              onDrawOffer={() => { send({ type: "drawOffer" }); }}
               onLeave={() => isOnline ? setDialog("leave") : choosePractice()}
             /> : (
               <section className="online-entry-grid" aria-label="Chọn cách đấu online">

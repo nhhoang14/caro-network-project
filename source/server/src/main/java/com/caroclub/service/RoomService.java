@@ -24,7 +24,7 @@ import org.springframework.stereotype.Service;
 
 @Service
 public class RoomService {
-    public static final long TURN_MS = 15_000, RECONNECT_MS = 30_000;
+    public static final long TURN_MS = 15_000, RECONNECT_MS = 30_000, DRAW_OFFER_COOLDOWN_MS = 10_000;
     private final HistoryStore history;
     private final LongSupplier clock;
     private final SecureRandom random = new SecureRandom();
@@ -57,7 +57,7 @@ public class RoomService {
         public Consumer<Object> send;
         public Runnable close;
         public boolean online;
-        public long lastSeen, lastChat = -1;
+        public long lastSeen, lastChat = -1, lastDrawOffer = -1;
     }
 
     static final class Room {
@@ -211,6 +211,7 @@ public class RoomService {
         room.remaining = null;
         room.rematch.clear();
         room.drawOfferedBy = null;
+        room.players.forEach(player -> player.lastDrawOffer = -1);
     }
 
     private void finish(Room room, String winner, String reason, List<Integer> line) {
@@ -558,6 +559,7 @@ public class RoomService {
                 error(user, "Ô cờ không hợp lệ.");
                 return;
             }
+            String cancelledDrawRequester = room.drawOfferedBy;
             room.drawOfferedBy = null;
             room.board.set(index, symbol);
             room.moves.add(new MatchRecord.Move(index, symbol));
@@ -571,6 +573,13 @@ public class RoomService {
                 room.deadline = now() + TURN_MS;
             }
             broadcast(room);
+            if (cancelledDrawRequester != null) {
+                room.players.stream().filter(p -> p.id.equals(cancelledDrawRequester)).findFirst()
+                        .ifPresent(p -> send(p, map("type", "notice", "message",
+                                cancelledDrawRequester.equals(user.id)
+                                        ? "Đề nghị hòa đã được hủy vì bạn tiếp tục đi cờ."
+                                        : user.name + " đã từ chối đề nghị hòa bằng cách tiếp tục đi cờ.")));
+            }
         } else if (type.equals("chat")) {
             String content = string(data, "text").trim();
             if (content.length() > 300)
@@ -588,23 +597,34 @@ public class RoomService {
                 room.messages.removeFirst();
             broadcast(room);
         } else if (type.equals("drawOffer")) {
-            if (!"playing".equals(room.status))
-                return;
-            if (room.players.size() < 2)
-                return;
-            if (room.drawOfferedBy != null && room.drawOfferedBy.equals(user.id)) {
-                error(user, "Bạn đã gửi đề nghị hòa rồi.");
+            if (!"playing".equals(room.status)) {
+                error(user, "Ván đấu chưa bắt đầu hoặc đã kết thúc.");
                 return;
             }
+            if (room.players.size() < 2) {
+                error(user, "Chưa có đối thủ để gửi đề nghị hòa.");
+                return;
+            }
+            if (room.players.stream().anyMatch(p -> !p.online)) {
+                error(user, "Không thể xin hòa khi đối thủ đang mất kết nối.");
+                return;
+            }
+            if (room.drawOfferedBy != null) {
+                error(user, room.drawOfferedBy.equals(user.id)
+                        ? "Bạn đã gửi đề nghị hòa rồi."
+                        : "Đối thủ đang đề nghị hòa. Hãy đồng ý hoặc từ chối đề nghị đó.");
+                return;
+            }
+            if (user.lastDrawOffer >= 0 && now() - user.lastDrawOffer < DRAW_OFFER_COOLDOWN_MS) {
+                error(user, "Bạn vừa gửi đề nghị hòa. Vui lòng chờ một lúc trước khi gửi lại.");
+                return;
+            }
+            user.lastDrawOffer = now();
             room.drawOfferedBy = user.id;
             broadcast(room);
-            String other = room.players.stream().filter(p -> !p.id.equals(user.id)).findFirst().map(p -> p.id)
-                    .orElse(null);
-            if (other != null) {
-                room.players.stream().filter(p -> p.id.equals(other)).findFirst()
-                        .ifPresent(
-                                p -> send(p, map("type", "notice", "message", user.name + " đã gửi lời mời cầu hòa.")));
-            }
+            room.players.stream().filter(p -> !p.id.equals(user.id)).findFirst()
+                    .ifPresent(p -> send(p, map("type", "drawOfferReceived", "fromName", user.name)));
+            send(user, map("type", "notice", "message", "Đã gửi đề nghị hòa đến đối thủ."));
         } else if (type.equals("drawResponse")) {
             if (!"playing".equals(room.status))
                 return;

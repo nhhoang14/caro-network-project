@@ -232,8 +232,10 @@ export default function GameCard({
           <Icon name="undo" size={17} /> Đi lại
         </button>
         {isOnline && !isSpectator && room.status === "playing" && onDrawOffer && (
-          <button className="text-button" disabled={room.drawOfferedBy === me} onClick={onDrawOffer}>
-            <Icon name="handshake" size={17} /> {room.drawOfferedBy === me ? "Đang chờ hòa…" : "Xin hòa"}
+          <button className="text-button" disabled={Boolean(room.drawOfferedBy)} onClick={onDrawOffer}>
+            <Icon name="handshake" size={17} /> {room.drawOfferedBy === me
+              ? "Đang chờ hòa…"
+              : room.drawOfferedBy ? "Đối thủ xin hòa…" : "Xin hòa"}
           </button>
         )}
         <span className="action-note">{isOnline ? "Nước đi được xác nhận bởi server" : "Thử chiến thuật, tự tin hơn mỗi ván"}</span>
