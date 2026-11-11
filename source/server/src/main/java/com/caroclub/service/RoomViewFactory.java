@@ -21,7 +21,7 @@ final class RoomViewFactory {
         List<Map<String, Object>> players = room.finalPlayers != null
                 ? room.finalPlayers
                 : room.players.stream()
-                        .map(player -> map("id", player.id, "name", player.name, "online", player.online))
+                        .map(player -> map("id", player.id, "name", player.name, "online", player.online()))
                         .toList();
         return map("id", room.id, "round", room.round, "board", room.board, "status", room.status,
                 "turn", room.turn, "players", players, "moves", room.moves, "winner", room.winner,

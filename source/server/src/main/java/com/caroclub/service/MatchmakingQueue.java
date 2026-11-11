@@ -14,7 +14,7 @@ final class MatchmakingQueue {
 
     RoomService.User findOpponent(RoomService.User user) {
         return waiting.stream()
-                .filter(candidate -> candidate.online
+                .filter(candidate -> candidate.online()
                         && !candidate.id.equals(user.id)
                         && candidate.roomId == null
                         && !candidate.profile.profile().id.equals(user.profile.profile().id))

@@ -122,6 +122,28 @@ class RoomServiceTest {
         assertEquals(guestId, latest(afterLogout, "welcome").path("profileId").asText());
     }
 
+    @Test void authenticatedConnectionsShareOnePlayerAndReceiveRoomState() throws Exception {
+        String accountId = history.profile(null).profile().id;
+        Client laptop = new Client();
+        Client phone = new Client();
+        RoomService.Connected laptopConnection = service.connect("laptop-token", laptop.events::add, () -> {}, null,
+                accountId);
+        RoomService.Connected phoneConnection = service.connect("phone-token", phone.events::add, () -> {}, null,
+                accountId);
+        laptop.user = laptopConnection.user();
+        laptop.connectionId = laptopConnection.connectionId();
+        phone.user = phoneConnection.user();
+        phone.connectionId = phoneConnection.connectionId();
+
+        assertSame(laptop.user, phone.user);
+        send(laptop, "{\"type\":\"create\",\"name\":\"An\"}");
+        assertEquals(1, latest(phone, "room").path("room").path("players").size());
+
+        service.disconnect(laptop.user, laptop.connectionId);
+        assertEquals(1, latest(phone, "room").path("room").path("players").size());
+        assertTrue(latest(phone, "room").path("room").path("players").get(0).path("online").asBoolean());
+    }
+
     @Test void chatIsScopedTruncatedAndRateLimited() throws Exception {
         Client x = connect(null), o = connect(null);
         send(x, "{\"type\":\"create\",\"name\":\"An\"}");

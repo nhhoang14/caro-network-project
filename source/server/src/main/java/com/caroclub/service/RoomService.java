@@ -29,6 +29,7 @@ public class RoomService {
     private final LongSupplier clock;
     private final SecureRandom random = new SecureRandom();
     private final Map<String, User> sessions = new LinkedHashMap<>();
+    private final Map<String, User> accountUsers = new LinkedHashMap<>();
     private final Map<String, Room> rooms = new LinkedHashMap<>();
     private final MatchmakingQueue queue = new MatchmakingQueue();
     private final Map<String, Invitation> invitations = new ConcurrentHashMap<>();
@@ -51,13 +52,18 @@ public class RoomService {
     }
 
     public static final class User {
-        public String id = UUID.randomUUID().toString(), token, name = "Người chơi", roomId, role, connectionId;
+        public String id = UUID.randomUUID().toString(), token, name = "Người chơi", roomId, role;
         public HistoryStore.ProfileSession profile;
         public String accountProfileId;
-        public Consumer<Object> send;
-        public Runnable close;
-        public boolean online;
+        private final Map<String, Connection> connections = new LinkedHashMap<>();
         public long lastSeen, lastChat = -1, lastDrawOffer = -1;
+
+        boolean online() {
+            return !connections.isEmpty();
+        }
+    }
+
+    private record Connection(Consumer<Object> send, Runnable close) {
     }
 
     static final class Room {
@@ -94,21 +100,26 @@ public class RoomService {
     public synchronized Connected connect(String token, Consumer<Object> send, Runnable close, String profileToken,
             String accountProfileId) {
         User user = token == null ? null : sessions.get(token);
+        if (accountProfileId != null && accountUsers.containsKey(accountProfileId))
+            user = accountUsers.get(accountProfileId);
         if (user == null) {
-            if (sessions.size() >= 1000)
+            if (users().size() >= 1000)
                 throw new IllegalStateException("Server đang đầy. Vui lòng thử lại sau.");
             user = new User();
             user.token = randomToken();
-            sessions.put(user.token, user);
         }
         boolean switchingProfile = !Objects.equals(user.accountProfileId, accountProfileId);
         if (switchingProfile && user.roomId != null)
             leave(user);
-        Runnable oldClose = user.close;
-        user.connectionId = UUID.randomUUID().toString();
-        user.send = send;
-        user.close = close;
-        user.online = true;
+        if (switchingProfile && user.accountProfileId != null)
+            accountUsers.remove(user.accountProfileId, user);
+        if (accountProfileId != null)
+            accountUsers.put(accountProfileId, user);
+        if (token != null)
+            sessions.put(token, user);
+        sessions.putIfAbsent(user.token, user);
+        String connectionId = UUID.randomUUID().toString();
+        user.connections.put(connectionId, new Connection(send, close));
         user.lastSeen = now();
         if (switchingProfile || user.profile == null) {
             user.profile = accountProfileId == null ? history.profile(profileToken)
@@ -116,14 +127,12 @@ public class RoomService {
             user.name = user.profile.profile().name;
         }
         user.accountProfileId = accountProfileId;
-        if (oldClose != null)
-            oldClose.run();
         send.accept(map("type", "welcome", "id", user.id, "name", user.name, "token", user.token, "serverTime", now(),
                 "profileToken", user.profile.token(), "profileId", user.profile.profile().id));
         Room room = rooms.get(user.roomId);
         if (room != null) {
             if ("player".equals(user.role) && "playing".equals(room.status)
-                    && room.players.stream().allMatch(p -> p.online)) {
+                    && room.players.stream().allMatch(User::online)) {
                 room.deadline = now() + (room.remaining == null ? TURN_MS : room.remaining);
                 room.remaining = null;
             }
@@ -131,7 +140,7 @@ public class RoomService {
         }
         lobby();
         stats(user);
-        return new Connected(user, user.connectionId);
+        return new Connected(user, connectionId);
     }
 
     public synchronized int roomCount() {
@@ -139,8 +148,8 @@ public class RoomService {
     }
 
     private void send(User user, Object payload) {
-        if (user.online && user.send != null)
-            user.send.accept(payload);
+        for (Connection connection : List.copyOf(user.connections.values()))
+            connection.send().accept(payload);
     }
 
     private void error(User user, String message) {
@@ -154,8 +163,8 @@ public class RoomService {
 
     private void allStats() {
         List<Map<String, Object>> leaderboard = history.leaderboard();
-        for (User user : sessions.values())
-            if (user.online)
+        for (User user : users())
+            if (user.online())
                 send(user, map("type", "stats", "history", history.personal(user.profile.profile().id), "leaderboard",
                         leaderboard));
     }
@@ -172,12 +181,12 @@ public class RoomService {
         List<Map<String, Object>> list = rooms.values().stream()
                 .filter(r -> !r.players.isEmpty())
                 .filter(r -> !"finished".equals(r.status))
-                .filter(r -> !"waiting".equals(r.status) || r.players.stream().allMatch(p -> p.online))
+                .filter(r -> !"waiting".equals(r.status) || r.players.stream().allMatch(User::online))
                 .map(RoomViewFactory::lobbyRoom).toList();
-        long online = sessions.values().stream().filter(p -> p.online).count();
+        long online = users().stream().filter(User::online).count();
         Map<String, Double> allScores = history.allScores();
-        List<Map<String, Object>> onlineUsers = sessions.values().stream()
-                .filter(u -> u.online)
+        List<Map<String, Object>> onlineUsers = users().stream()
+                .filter(User::online)
                 .map(u -> {
                     String status = "idle";
                     if (u.roomId != null) {
@@ -196,8 +205,12 @@ public class RoomService {
                 }).toList();
         Map<String, Object> payload = map("type", "lobby", "rooms", list, "online", online,
                 "matching", queue.size(), "users", onlineUsers);
-        for (User user : sessions.values())
+        for (User user : users())
             send(user, payload);
+    }
+
+    private List<User> users() {
+        return new ArrayList<>(new LinkedHashSet<>(sessions.values()));
     }
 
     private void reset(Room room) {
@@ -218,7 +231,7 @@ public class RoomService {
     }
 
     private void finish(Room room, String winner, String reason, List<Integer> line) {
-        room.finalPlayers = room.players.stream().map(p -> map("id", p.id, "name", p.name, "online", p.online))
+        room.finalPlayers = room.players.stream().map(p -> map("id", p.id, "name", p.name, "online", p.online()))
                 .toList();
         room.status = "finished";
         room.winner = winner;
@@ -261,7 +274,7 @@ public class RoomService {
         user.roomId = room.id;
         user.role = "player";
         reset(room);
-        if (room.players.stream().anyMatch(p -> !p.online)) {
+        if (room.players.stream().anyMatch(p -> !p.online())) {
             room.remaining = TURN_MS;
             room.deadline = null;
         }
@@ -354,7 +367,7 @@ public class RoomService {
         }
         if (type.equals("invite")) {
             String targetId = string(data, "targetUserId");
-            User target = sessions.values().stream().filter(u -> u.online && u.id.equals(targetId)).findFirst()
+            User target = users().stream().filter(u -> u.online() && u.id.equals(targetId)).findFirst()
                     .orElse(null);
             if (target == null) {
                 error(user, "Không tìm thấy người chơi này.");
@@ -405,7 +418,7 @@ public class RoomService {
                 send(inv.from, map("type", "notice", "message", user.name + " đã từ chối lời mời thách đấu."));
                 return;
             }
-            if (!inv.from.online) {
+            if (!inv.from.online()) {
                 error(user, "Người mời đã ngoại tuyến.");
                 return;
             }
@@ -519,7 +532,7 @@ public class RoomService {
                     error(user, "Phòng đã đủ người hoặc đã bắt đầu.");
                     return;
                 }
-                if (room.players.stream().anyMatch(p -> !p.online)) {
+                if (room.players.stream().anyMatch(p -> !p.online())) {
                     error(user, "Chủ phòng đang mất kết nối. Vui lòng chọn phòng khác.");
                     return;
                 }
@@ -551,7 +564,7 @@ public class RoomService {
                 error(user, "Ván đấu chưa bắt đầu hoặc đã kết thúc.");
                 return;
             }
-            if (room.players.stream().anyMatch(p -> !p.online)) {
+            if (room.players.stream().anyMatch(p -> !p.online())) {
                 error(user, "Đang đợi đối thủ kết nối lại.");
                 return;
             }
@@ -618,7 +631,7 @@ public class RoomService {
                 error(user, "Chưa có đối thủ để gửi đề nghị hòa.");
                 return;
             }
-            if (room.players.stream().anyMatch(p -> !p.online)) {
+            if (room.players.stream().anyMatch(p -> !p.online())) {
                 error(user, "Không thể xin hòa khi đối thủ đang mất kết nối.");
                 return;
             }
@@ -687,7 +700,7 @@ public class RoomService {
                 return;
             }
             room.rematch.add(user.id);
-            if (room.rematch.size() == 2 && room.players.stream().allMatch(p -> p.online)) {
+            if (room.rematch.size() == 2 && room.players.stream().allMatch(User::online)) {
                 Collections.reverse(room.players);
                 reset(room);
             }
@@ -698,10 +711,11 @@ public class RoomService {
     }
 
     public synchronized void disconnect(User user, String connectionId) {
-        if (!connectionId.equals(user.connectionId))
+        if (user.connections.remove(connectionId) == null)
             return;
-        user.online = false;
         user.lastSeen = now();
+        if (user.online())
+            return;
         queue.remove(user);
         invitations.values().removeIf(inv -> inv.from.id.equals(user.id) || inv.to.id.equals(user.id));
         Room room = rooms.get(user.roomId);
@@ -718,11 +732,14 @@ public class RoomService {
     @Scheduled(fixedDelay = 250)
     public synchronized void tick() {
         invitations.values().removeIf(inv -> now() > inv.expiresAt);
-        for (User user : new ArrayList<>(sessions.values())) {
-            if (!user.online && now() - user.lastSeen >= RECONNECT_MS && user.roomId != null)
+        for (User user : users()) {
+            if (!user.online() && now() - user.lastSeen >= RECONNECT_MS && user.roomId != null)
                 leave(user);
-            if (!user.online && user.roomId == null && now() - user.lastSeen > 600_000)
-                sessions.remove(user.token);
+            if (!user.online() && user.roomId == null && now() - user.lastSeen > 600_000) {
+                sessions.values().removeIf(value -> value == user);
+                if (user.accountProfileId != null)
+                    accountUsers.remove(user.accountProfileId, user);
+            }
         }
         for (Room room : new ArrayList<>(rooms.values())) {
             if ("playing".equals(room.status) && room.remaining == null && room.deadline != null
